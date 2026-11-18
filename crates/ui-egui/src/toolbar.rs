@@ -476,16 +476,13 @@ const RAIL_ICON_GAP: f32 = 4.0;
 /// Padding inside the rail's card around its icons, as the tool shelf's
 const RAIL_CARD_PADDING: egui::Margin = egui::Margin::symmetric(3, 6);
 
-/// The icon rail: Export, then the rail panels that are not in the dock, each opening its popup
+/// The icon rail: the rail panels that are not in the dock (Export first), each opening its popup
 pub fn rail(app: &mut TextureCraftApp, ui: &mut egui::Ui) {
     let tokens = Tokens::get(ui.ctx());
     egui::Panel::right("rail").resizable(false).exact_size(RAIL_WIDTH).show_separator_line(false).frame(egui::Frame::NONE).show(ui, |ui| {
         card(ui, &tokens, egui::Margin { left: 0, right: GUTTER, top: GUTTER, bottom: GUTTER }, RAIL_CARD_PADDING, |ui| {
             ui.spacing_mut().item_spacing.y = RAIL_ICON_GAP;
             crate::rail_popup::begin_rail(ui.ctx(), ui.max_rect());
-            if icon_button(ui, ic::EXPORT, &tip(&app.ui.keymap, tr("Export textures"), "ui.export"), app.ui.windows.export, RAIL_ICON_SIZE).clicked() {
-                app.ui.windows.export = !app.ui.windows.export;
-            }
 
             // A panel in the dock, docked or floating, leaves the rail until it is closed there
             for (panel, icon, id) in crate::rail_popup::RAIL_PANELS {

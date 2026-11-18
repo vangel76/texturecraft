@@ -79,6 +79,9 @@ pub struct Windows {
     /// Browser File › Export Mesh: the download format choice.
     #[serde(default)]
     pub export_mesh: bool,
+    /// File › Export Mesh: the Mesh Export Options prompt before the file choice
+    #[serde(skip)]
+    pub mesh_export_options: bool,
     /// Edit > Project Configuration: what is chosen so far, applied by OK.
     #[serde(skip)]
     pub project_config: Option<ProjectConfig>,
@@ -374,6 +377,9 @@ pub struct UiState {
     /// The save, replace or manage dialog of the named layouts
     #[serde(skip)]
     pub layout_dialog: Option<crate::named_layouts::LayoutDialog>,
+    /// The Log panel's shown channel tab
+    #[serde(default)]
+    pub log_channel: crate::log_panel::LogChannel,
 }
 
 impl UiState {
@@ -472,6 +478,7 @@ impl Default for UiState {
             bake_visualization: crate::bake_mode::BakeVisualizationToggles::default(),
             named_layouts: Vec::new(),
             layout_dialog: None,
+            log_channel: crate::log_panel::LogChannel::default(),
         }
     }
 }

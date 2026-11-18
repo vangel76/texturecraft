@@ -68,6 +68,7 @@ pub const CATALOG: &[Item] = &[
     sub("Window", "Views", "Assets", "ui.view.assets", None),
     sub("Window", "Views", "Common Settings", "ui.view.bakeSettings", None),
     sub("Window", "Views", "Display Settings", "ui.view.display", None),
+    sub("Window", "Views", "Export", "ui.view.export", None),
     sub("Window", "Views", "History", "ui.view.history", None),
     sub("Window", "Views", "Layers", "ui.view.layers", None),
     sub("Window", "Views", "Log", "ui.view.log", None),
@@ -193,6 +194,9 @@ pub fn invoke(app: &mut TextureCraftApp, ctx: &egui::Context, id: &str) {
     match id {
         "ui.newProject" => app.ui.windows.new_project = true,
         "ui.export" => app.ui.windows.export = true,
+
+        // The mesh export options come first; their Export leads to the file choice
+        "file.exportMesh" => app.ui.windows.mesh_export_options = true,
         "ui.quit" => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
         #[cfg(not(target_arch = "wasm32"))]
         "ui.projectConfig" => crate::project_config::open(app),

@@ -15,8 +15,10 @@ mod bake_scene;
 mod color_selection_editor;
 pub mod control;
 mod decal_drop;
+mod display_settings;
 pub mod dock;
 pub mod docking;
+mod export_panel;
 pub mod export_templates;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod file_dialogs;
@@ -39,9 +41,11 @@ mod levels_handle;
 mod levels_properties;
 mod line_snap;
 mod list_action;
+pub mod log_panel;
 mod mask_preview_image;
 mod material_preview_image;
 pub mod menus;
+mod mesh_export_options;
 mod name_error;
 mod named_layout;
 pub mod named_layouts;
@@ -75,6 +79,8 @@ mod resource_picker_tile;
 mod running_bake;
 pub mod saved_search;
 mod screen_color_pick;
+mod section_page;
+pub mod shader_settings;
 pub mod shelf;
 mod shelf_entry;
 mod shelf_folders;
@@ -95,6 +101,7 @@ mod tile_edits;
 pub mod titlebar;
 pub mod toolbar;
 pub mod ui_state_store;
+pub mod unavailable;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod updates_ui;
 pub mod uv_paint_point;
@@ -365,6 +372,7 @@ impl TextureCraftApp {
                 if id == "file.close" {
                     self.ui.mode = state::Mode::Painting;
                     self.ui.windows.export = false;
+                    self.ui.windows.mesh_export_options = false;
                 }
 
                 match glide_from {

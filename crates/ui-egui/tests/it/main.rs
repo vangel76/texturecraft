@@ -58,6 +58,7 @@ mod shift_lines_2d;
 mod shift_lines_3d;
 mod shortcut_gestures;
 mod shortcut_keys;
+mod side_panels;
 mod skew_paint;
 mod smudge_channels;
 mod snapped_lines;

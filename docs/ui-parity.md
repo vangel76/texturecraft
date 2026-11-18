@@ -55,6 +55,39 @@ The relevant implementations are [layer rows, menus and fill/brush editors](../c
 [display settings](../crates/core/src/project.rs), and
 [smart-mask commands](../crates/engine/src/smart_masks.rs).
 
+## Side panels ([#642](https://github.com/storytold/texturecraft/issues/642))
+
+**UI + tests** (`crates/ui-egui/tests/it/side_panels.rs`). The right bar lists Export, Log,
+Display Settings, Shader Settings and History in the reference order (Texture Set Settings follows
+when it is not docked). Each opens a popup beside the bar with its title in capitals, an *Undock*
+button that turns it into a floating window, and *Close*. A floating rail panel has a *Dock* button
+that closes it back onto the bar; the float is saved with the UI state.
+
+- **Export:** SEND TO lists three targets and a Configure button, all greyed with "Not available
+  yet". The reference names other products there; TextureCraft says *Export to image editor*,
+  *Send to compositing app* and *Send to 3D staging app*. EXPORT has *Export Mesh...* (the
+  *Mesh Export Options* prompt, then the file choice) and *Export Textures...* (the Export textures
+  window: *Global settings* above the texture sets, *General Export Parameters*, *Export USD asset*
+  and *Export shaders parameters* greyed, *Include all*, *Save settings* and "N textures selected
+  for export"). The prompt's *With displacement/tessellation* choice and both option checkboxes are
+  greyed; TextureCraft exports the mesh as it is.
+- **Log:** *General* and *Assets* tabs. Messages are sorted by how they begin (see
+  `log_panel::ASSET_PREFIXES`); the status bar still shows the latest message of either.
+- **Display Settings:** *View mode* above the section tabs; Environment settings (Environment Map,
+  Opacity, Exposure (EV), Blur, Rotation; *Override environment map color space* with *Auto*,
+  *Environment Alignment* *World*), Shadows (*Shadows*; *Computation mode* *Lightweight* and
+  *Shadows opacity* 90 greyed) and Camera settings (*Preset* and *Restore* work on the saved
+  cameras). Post effects and Viewer settings keep TextureCraft's own controls. The reference's
+  fifth tab is not shown in the screenshot and is left out. Colour management stays greyed.
+- **Shader Settings:** greyed *Undo*, *Redo* and *Instance name* (*Main shader*); the *open-pbr*
+  button opens the shader choice with the reference's search (*u:shader*) and its 17 entries as
+  the screenshot shows them, names cut short included. Only *open-pbr* works. Shader parameters
+  (Base Surface, Specular, Transmission, Subsurface) and Displacement & tessellation (Enable,
+  Displacement, Tessellation, *Restore defaults*) follow the reference; rows TextureCraft cannot
+  drive are greyed. Its own Metallic Roughness / Specular Glossiness model choice, Scatter color and
+  Parallax occlusion stay in the fitting sections. *Quality*, *Horizon fade* and the cut-off
+  "Enable d..." row are hidden in the reference screenshot and are left out.
+
 ## Partial areas
 
 | ID | Area | Observed limit | Next check |

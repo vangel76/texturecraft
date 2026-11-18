@@ -143,6 +143,9 @@ Everything TextureCraft does today, by area. What's still missing is in [`ROADMA
   override and OpenGL or DirectX normals.
 - **Output template editor:** build your own presets with per-channel packing, converted maps and per-channel inversion,
   and share them as JSON.
+- **Export panel** on the right bar: *Export Mesh...* asks for the mesh export options, then for
+  the file; *Export Textures...* opens the Export textures window (Settings, Output templates and
+  List of exports, *Include all*, *Save settings* and the number of textures the export writes).
 - **Mesh export** to OBJ with an MTL material library and its maps (PBR extension keys for
   roughness, metallic, normal and coat; UV-tiled sets keep their UDIM UVs and export their maps
   through Export textures), textured GLB (with clear coat and sheen) and USD (with clear coat).
@@ -178,7 +181,12 @@ Everything TextureCraft does today, by area. What's still missing is in [`ROADMA
   desktops that leave the frame to the app, such as GNOME), the macOS traffic lights over the same
   strip, and Settings › Interface › System title bar for the system's frame instead.
 - **Dockable, tabbed and floating panels**, saved layouts, and panels that reopen where you closed
-  them.
+  them. The right bar's panels (Export, Log, Display Settings, Shader Settings, History) pop out
+  beside it; *Undock* makes one a floating window, and its *Dock* button puts it back on the bar.
+- **Display and Shader Settings** are one scrolling page each: their section tabs jump to a
+  section, and scrolling highlights the tab of the section in view.
+- A **Log** panel with a *General* and an *Assets* tab: asset messages (resources that do not
+  decode, skipped templates and presets, PBR folder and MaterialX import warnings) go under Assets.
 - **No project at launch**: empty views, panels and toolbars until you create or open one (File ›
   New project, Open, Recent projects, Open sample project); File › Close returns to that state.
 - A **data folder** of your choice for autosaves, smart materials, presets, templates and UI

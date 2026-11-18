@@ -1,12 +1,9 @@
-//! Floating windows and dockable display, shader, history and log panels
+//! Floating windows and the dockable History panel
 
 use egui::{Color32, RichText, Ui, vec2};
 use egui_phosphor::regular as ic;
 use serde_json::json;
-use texturecraft_engine::core::ToneMapping;
-use texturecraft_engine::core::project::{DisplaySettings, ENV_RESOURCE_PREFIX};
 use texturecraft_engine::geom::primitives::BUILTINS;
-use texturecraft_render::ibl::ENVIRONMENTS;
 
 use crate::TextureCraftApp;
 #[cfg(not(target_arch = "wasm32"))]
@@ -16,7 +13,7 @@ use crate::i18n::{tr, tr_history, trf};
 use crate::new_project_advanced::COMBO_WIDTH;
 use crate::state::Mode;
 use crate::theme::{Accent, Brightness, Tokens, caption};
-use crate::widgets::{color_swatch, combo, icon_button, primary_button, section, section_with_reset, slider};
+use crate::widgets::primary_button;
 
 pub fn show(app: &mut TextureCraftApp, ctx: &egui::Context) {
     new_project(app, ctx);
@@ -26,6 +23,7 @@ pub fn show(app: &mut TextureCraftApp, ctx: &egui::Context) {
     crate::project_config::show(app, ctx);
     crate::keymap::window(app, ctx);
     crate::windows::export(app, ctx);
+    crate::mesh_export_options::show(app, ctx);
     #[cfg(target_arch = "wasm32")]
     export_mesh(app, ctx);
     crate::pbr_import::window(app, ctx);
@@ -201,200 +199,6 @@ pub(crate) fn dialog<'a>(id: &str, title: &str, open: &'a mut bool) -> egui::Win
         .collapsible(false)
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, vec2(0.0, 0.0))
-}
-
-/// The Display Settings panel body (a dock tab).
-pub(crate) fn display(app: &mut TextureCraftApp, ui: &mut Ui) {
-    let ctx = ui.ctx().clone();
-    let mut d = app.session.doc.project.display.clone();
-    let before = d.clone();
-    ui.label(caption(tr("Environment settings")));
-    let mut hdrs: Vec<&String> = app.session.images.iter().filter(|(_, i)| !i.srgb).map(|(k, _)| k).collect();
-    hdrs.sort();
-    let mut import_hdr = false;
-    let shown = d.environment_resource().unwrap_or(&d.environment).to_string();
-    combo(ui, tr("Environment map"), shown, |ui| {
-        for e in ENVIRONMENTS {
-            ui.selectable_value(&mut d.environment, e.to_string(), e);
-        }
-        ui.separator();
-        for name in hdrs {
-            ui.selectable_value(&mut d.environment, format!("{ENV_RESOURCE_PREFIX}{name}"), name.as_str());
-        }
-        import_hdr = ui
-            .selectable_label(false, format!("{} {}", ic::FILE_ARROW_UP, tr("Import HDR...")))
-            .on_hover_text(tr("Use an equirectangular .hdr or .exr image as the environment"))
-            .clicked();
-    });
-    slider(ui, tr("Environment opacity"), &mut d.env_opacity, 0.0..=1.0, 2);
-    slider(ui, tr("Environment exposure (EV)"), &mut d.env_exposure, -5.0..=5.0, 2);
-    slider(ui, tr("Environment blur"), &mut d.env_blur, 0.0..=1.0, 2);
-    slider(ui, tr("Environment rotation"), &mut d.env_rotation, 0.0..=360.0, 0);
-    ui.checkbox(&mut d.shadows, tr("Key light (shadow-casting light, direct only)"));
-    ui.add_space(6.0);
-    ui.label(caption(tr("Camera settings")));
-    slider(ui, tr("Field of view (deg)"), &mut d.fov, 5.0..=120.0, 0);
-    let mut ortho = app.session.camera.ortho;
-    if ui.checkbox(&mut ortho, tr("Orthographic")).changed() {
-        app.run("camera.set", json!({"ortho": ortho}));
-    }
-    let tone_mapping_name = |tone_mapping: ToneMapping| match tone_mapping {
-        ToneMapping::Linear => tr("Linear"),
-        ToneMapping::AcesFilmic => tr("ACES filmic"),
-    };
-    combo(ui, tr("Tone mapping"), tone_mapping_name(d.tone_mapping), |ui| {
-        for tone_mapping in [ToneMapping::Linear, ToneMapping::AcesFilmic] {
-            ui.selectable_value(&mut d.tone_mapping, tone_mapping, tone_mapping_name(tone_mapping));
-        }
-    });
-    cameras(app, ui);
-    ui.add_space(6.0);
-    ui.label(caption(tr("Depth of field")));
-    ui.checkbox(&mut d.dof.enabled, tr("Depth of field (viewport and Rendering mode)"));
-    ui.add_enabled_ui(d.dof.enabled, |ui| {
-        let far = (app.session.camera.distance * 4.0).max(d.dof.focus_distance);
-        slider(ui, tr("Focus distance"), &mut d.dof.focus_distance, 0.0..=far, 2)
-            .on_hover_text(tr("Depth of the sharp plane along the view (0: the orbit center)"));
-        slider(ui, tr("Aperture"), &mut d.dof.aperture, 0.0..=1.0, 3).on_hover_text(tr("Lens size: how quickly things blur away from the focus distance"));
-        let picking = crate::viewport::focus_picking(ui.ctx());
-        if ui.selectable_label(picking, format!("{}  {}", ic::CROSSHAIR_SIMPLE, tr("Pick focus in the viewport"))).clicked() {
-            crate::viewport::set_focus_picking(ui.ctx(), !picking);
-        }
-    });
-    ui.add_space(6.0);
-
-    // The switch gates all four amounts (the engine has one switch for the group); each amount 0 leaves that effect out
-    let post_effect_fields = |d: &DisplaySettings| (d.post_effects, d.bloom, d.vignette, d.sharpen, d.grain);
-    let post_effect_defaults = post_effect_fields(&DisplaySettings::default());
-    if section_with_reset(ui, "sec_post_effects", tr("Post effects"), false, post_effect_fields(&d) == post_effect_defaults, |ui| {
-        ui.checkbox(&mut d.post_effects, tr("Post effects (viewport and Rendering mode)"));
-        ui.add_enabled_ui(d.post_effects, |ui| {
-            slider(ui, tr("Glow"), &mut d.bloom, 0.0..=1.0, 2).on_hover_text(tr("Bright areas bleed light into their surroundings"));
-            slider(ui, tr("Vignette"), &mut d.vignette, 0.0..=1.0, 2).on_hover_text(tr("Darkens the corners of the view"));
-            slider(ui, tr("Sharpen"), &mut d.sharpen, 0.0..=1.0, 2).on_hover_text(tr("Brings out fine detail"));
-            slider(ui, tr("Film grain"), &mut d.grain, 0.0..=1.0, 2).on_hover_text(tr("Adds fine noise over the view"));
-        });
-    }) {
-        (d.post_effects, d.bloom, d.vignette, d.sharpen, d.grain) = post_effect_defaults;
-    }
-    ui.add_space(6.0);
-    ui.label(caption(tr("Viewer settings")));
-    ui.checkbox(&mut app.ui.wireframe_3d, tr("Show wireframe in the 3D view"));
-    ui.checkbox(&mut app.ui.uv_wireframe, tr("Show UV wireframe in the 2D view"));
-    ui.checkbox(&mut d.taa, tr("Temporal anti-aliasing (refines the 3D view while it is still)"));
-    if d != before {
-        if d.fov != before.fov {
-            app.session.camera.fov = d.fov;
-        }
-        app.session.doc.project.display = d;
-    }
-    if import_hdr {
-        crate::web_files::import_environment(app, &ctx);
-    }
-}
-
-/// The camera list: rename (edit the name), view or delete saved and imported cameras, save the
-/// current view.
-fn cameras(app: &mut TextureCraftApp, ui: &mut Ui) {
-    let current = texturecraft_engine::camera_cmds::current(&app.session);
-    let names: Vec<String> = app.session.doc.project.cameras.iter().map(|c| c.name.clone()).collect();
-    for (i, name) in names.iter().enumerate() {
-        ui.horizontal(|ui| {
-            if icon_button(ui, ic::VIDEO_CAMERA, tr("View through this camera"), current == Some(i), 20.0).clicked() {
-                app.run("camera.select", json!({"index": i}));
-            }
-            // The name being typed lives in egui's memory until the field loses focus.
-            let id = ui.scope_id().with(("camera_name", i));
-            let mut text = ui.data(|d| d.get_temp::<String>(id)).unwrap_or_else(|| name.clone());
-            let r = ui.add(egui::TextEdit::singleline(&mut text).desired_width(ui.available_width() - 26.0));
-            if r.changed() {
-                ui.data_mut(|d| d.insert_temp(id, text.clone()));
-            }
-            if r.lost_focus() {
-                ui.data_mut(|d| d.remove::<String>(id));
-                if text.trim() != name && !text.trim().is_empty() {
-                    app.run("camera.rename", json!({"index": i, "to": text.trim()}));
-                }
-            }
-            if icon_button(ui, ic::TRASH, tr("Delete this camera"), false, 20.0).clicked() {
-                app.run("camera.remove", json!({"index": i}));
-            }
-        });
-    }
-    if ui.button(format!("{}  {}", ic::PLUS, tr("Save view as camera"))).clicked() {
-        app.run("camera.add", json!({}));
-    }
-}
-
-/// Wide enough for the longer shader model name
-const SHADER_MODEL_COMBO_WIDTH: f32 = 260.0;
-
-/// Width of the scatter color swatch
-const SCATTER_SWATCH_WIDTH: f32 = 44.0;
-
-/// Index of refraction slider range: air to well past diamond (2.42)
-const INDEX_OF_REFRACTION_RANGE: std::ops::RangeInclusive<f32> = 1.0..=3.0;
-
-/// The Shader Settings panel body (a dock tab)
-pub(crate) fn shader(app: &mut TextureCraftApp, ui: &mut Ui) {
-    let tokens = Tokens::get(ui.ctx());
-    let mut display = app.session.doc.project.display.clone();
-    let before = display.clone();
-
-    let model_name = |spec_gloss: bool| if spec_gloss { tr("TextureCraft PBR - Specular Glossiness") } else { tr("TextureCraft PBR - Metallic Roughness") };
-    let channels = if display.spec_gloss {
-        tr("Base color is the diffuse color, Specular the F0 color and Glossiness 1 - roughness (add these channels in the texture set settings).")
-    } else {
-        tr("Base color, Metallic, Roughness and Specular level.")
-    };
-    let model_text = tr(
-        "GGX specular with height-correlated Smith visibility, Lambert diffuse, split-sum image-based lighting with spherical-harmonics irradiance and horizon fading.",
-    );
-    let optional = tr(
-        "Optional channels add a clear coat (Coat weight, Coat roughness, Coat normal), sheen (Sheen weight, color, roughness), anisotropy (Anisotropy level, angle), subsurface scattering (Scattering weight) and transmission (Transmission).",
-    );
-
-    egui::ComboBox::from_id_salt("shader_model")
-        .width(SHADER_MODEL_COMBO_WIDTH)
-        .selected_text(model_name(display.spec_gloss))
-        .show_ui(ui, |ui| {
-            for spec_gloss in [false, true] {
-                ui.selectable_value(&mut display.spec_gloss, spec_gloss, model_name(spec_gloss));
-            }
-        })
-        .response
-        .on_hover_text(format!("{model_text} {channels} {optional}"));
-    ui.add_space(6.0);
-
-    ui.checkbox(&mut display.parallax, tr("Parallax occlusion (height channel)"))
-        .on_hover_text(tr("Offsets the textures by the height channel, at the height to normal strength"));
-    ui.checkbox(&mut display.displacement, tr("Displacement (height channel)")).on_hover_text(tr(
-        "Moves the surface by the height channel on a finer copy of the mesh, at the height to normal strength (viewport only: painting follows the base surface)",
-    ));
-    slider(ui, tr("AO intensity"), &mut display.ao_intensity, 0.0..=1.0, 2);
-    ui.add_space(6.0);
-
-    section(ui, "shader_subsurface", tr("Subsurface scattering"), true, |ui| {
-        ui.horizontal(|ui| {
-            ui.label(RichText::new(tr("Scatter color")).color(tokens.text));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                color_swatch(ui, "shader_scatter_color", &mut display.scatter_color, SCATTER_SWATCH_WIDTH)
-            })
-        })
-        .response
-        .on_hover_text(tr("Color of the light that travels under the surface (each channel goes as far as its value)"));
-        slider(ui, tr("Scatter radius"), &mut display.scatter_radius, 0.0..=1.0, 3)
-            .on_hover_text(tr("How far light travels under the surface, as a fraction of the mesh size (where the Scattering weight channel is painted)"));
-    });
-    section(ui, "shader_transmission", tr("Transmission"), true, |ui| {
-        slider(ui, tr("Index of refraction"), &mut display.ior, INDEX_OF_REFRACTION_RANGE, 2).on_hover_text(tr(
-            "How strongly transmissive surfaces bend light (where the Transmission channel is painted): water 1.33, glass 1.5, diamond 2.42",
-        ));
-    });
-
-    if display != before {
-        app.session.doc.project.display = display;
-    }
 }
 
 /// The History panel body (a dock tab)
@@ -794,15 +598,6 @@ fn about(app: &mut TextureCraftApp, ctx: &egui::Context) {
     app.ui.windows.about = open;
 }
 
-/// The Log panel body (a dock tab)
-pub(crate) fn log(app: &mut TextureCraftApp, ui: &mut Ui) {
-    egui::ScrollArea::vertical().auto_shrink([false, false]).stick_to_bottom(true).show(ui, |ui| {
-        for line in &app.session.log {
-            ui.label(RichText::new(line).monospace());
-        }
-    });
-}
-
 // ---------------------------------------------------------------------------------------------
 // Files (wired to texturecraft-formats once it lands)
 
@@ -1088,7 +883,7 @@ pub(crate) fn export_params(app: &TextureCraftApp) -> serde_json::Value {
 }
 
 fn export_settings_tab(app: &mut TextureCraftApp, ui: &mut Ui, presets: &[texturecraft_engine::formats::ExportPreset]) {
-    ui.label(caption(tr("General export parameters")));
+    ui.label(caption(tr("General Export Parameters")));
     egui::Grid::new("exp_grid").num_columns(2).spacing(vec2(12.0, 8.0)).show(ui, |ui| {
         // The browser downloads the files instead
         #[cfg(not(target_arch = "wasm32"))]
@@ -1147,9 +942,9 @@ fn export_settings_tab(app: &mut TextureCraftApp, ui: &mut Ui, presets: &[textur
         });
         ui.end_row();
         ui.label(tr("Size"));
-        let sz = if app.ui.export.size == 0 { tr("Based on each texture set's size").to_string() } else { format!("{0} x {0}", app.ui.export.size) };
+        let sz = if app.ui.export.size == 0 { tr("Based on each Texture Set's size").to_string() } else { format!("{0} x {0}", app.ui.export.size) };
         egui::ComboBox::from_id_salt("exp_size").width(360.0).selected_text(sz).show_ui(ui, |ui| {
-            ui.selectable_value(&mut app.ui.export.size, 0, tr("Based on each texture set's size"));
+            ui.selectable_value(&mut app.ui.export.size, 0, tr("Based on each Texture Set's size"));
             for r in [256u32, 512, 1024, 2048, 4096, 8192] {
                 ui.selectable_value(&mut app.ui.export.size, r, format!("{r} x {r}"));
             }
@@ -1178,6 +973,13 @@ fn export_settings_tab(app: &mut TextureCraftApp, ui: &mut Ui, presets: &[textur
             }
         });
         ui.end_row();
+    });
+
+    // The reference's two switches; TextureCraft's own normal map and colour space overrides follow them
+    crate::unavailable::checkbox(ui, false, tr("Export USD asset"));
+    crate::unavailable::checkbox(ui, false, tr("Export shaders parameters"));
+    ui.add_space(8.0);
+    egui::Grid::new("exp_grid_more").num_columns(2).spacing(vec2(12.0, 8.0)).show(ui, |ui| {
         ui.label(tr("Normal map format"));
         let nf = match app.ui.export.normal_format.as_str() {
             "openGl" => "OpenGL",
@@ -1202,6 +1004,18 @@ fn export_settings_tab(app: &mut TextureCraftApp, ui: &mut Ui, presets: &[textur
     });
 }
 
+/// Height of the Export textures window's tab body, above its buttons
+const EXPORT_BODY_HEIGHT: f32 = 440.0;
+
+/// How many files the export writes for the ticked texture sets
+fn selected_texture_count(app: &mut TextureCraftApp) -> usize {
+    let mut params = export_params(app);
+    params["ts"] = json!("all");
+    let Ok(plan) = texturecraft_engine::execute(&mut app.session, "export.plan", &params) else { return 0 };
+    let skipped = |file: &serde_json::Value| file.get("ts").and_then(serde_json::Value::as_u64).is_some_and(|ts| app.ui.export.skip.contains(&(ts as usize)));
+    plan.as_array().into_iter().flatten().filter(|file| !skipped(file)).count()
+}
+
 pub fn export(app: &mut TextureCraftApp, ctx: &egui::Context) {
     let tk = Tokens::get(ctx);
     if !app.ui.windows.export {
@@ -1212,7 +1026,7 @@ pub fn export(app: &mut TextureCraftApp, ctx: &egui::Context) {
     let mut open = true;
     let mut do_export = false;
     let presets = texturecraft_engine::formats::builtin_presets();
-    dialog("export_textures", tr("Export textures"), &mut open).fixed_size(vec2(820.0, 430.0)).show(ctx, |ui| {
+    dialog("export_textures", tr("Export textures"), &mut open).fixed_size(vec2(900.0, 520.0)).show(ctx, |ui| {
         // Nothing to export without a project
         if !app.session.project_open {
             ui.label(tr("No project is open"));
@@ -1221,14 +1035,21 @@ pub fn export(app: &mut TextureCraftApp, ctx: &egui::Context) {
 
         ui.horizontal(|ui| {
             for (i, t) in [tr("Settings"), tr("Output templates"), tr("List of exports")].iter().enumerate() {
-                if ui.selectable_label(app.ui.export.tab == i as u8, caption(t)).clicked() {
+                if ui.selectable_label(app.ui.export.tab == i as u8, caption(&t.to_uppercase())).clicked() {
                     app.ui.export.tab = i as u8;
                 }
             }
+
+            // Tick every texture set again
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.button(tr("Include all")).clicked() {
+                    app.ui.export.skip.clear();
+                }
+            });
         });
         ui.separator();
-        ui.allocate_ui_with_layout(vec2(ui.available_width(), 360.0), egui::Layout::left_to_right(egui::Align::Min), |ui| {
-            ui.set_height(360.0);
+        ui.allocate_ui_with_layout(vec2(ui.available_width(), EXPORT_BODY_HEIGHT), egui::Layout::left_to_right(egui::Align::Min), |ui| {
+            ui.set_height(EXPORT_BODY_HEIGHT);
             if app.ui.export.tab == 1 {
                 crate::export_templates::tab(app, ui, &presets);
                 return;
@@ -1236,7 +1057,9 @@ pub fn export(app: &mut TextureCraftApp, ctx: &egui::Context) {
 
             ui.vertical(|ui| {
                 ui.set_width(180.0);
-                ui.label(RichText::new(tr("Texture sets")).strong());
+
+                // The settings apply to every texture set; there are no per-set settings yet
+                let _ = ui.selectable_label(true, RichText::new(tr("Global settings")).strong());
                 for i in 0..app.session.set_count() {
                     let name = app.session.doc.project.texture_sets.get(i).map(|t| t.name.clone()).unwrap_or_default();
                     let mut on = !app.ui.export.skip.contains(&i);
@@ -1275,6 +1098,7 @@ pub fn export(app: &mut TextureCraftApp, ctx: &egui::Context) {
         });
         ui.add_space(8.0);
         ui.separator();
+        let selected = selected_texture_count(app);
         ui.horizontal(|ui| {
             if ui.button(tr("Reset all")).clicked() {
                 app.ui.export = crate::state::ExportUi::default();
@@ -1283,9 +1107,15 @@ pub fn export(app: &mut TextureCraftApp, ctx: &egui::Context) {
                 if ui.add(primary_button(ui, tr("Export"))).clicked() {
                     do_export = true;
                 }
+
+                // The settings are kept with the interface, so saving them closes the window without exporting
+                if ui.button(tr("Save settings")).on_hover_text(tr("Keep these settings for the next export")).clicked() {
+                    app.ui.windows.export = false;
+                }
                 if ui.button(tr("Cancel")).clicked() {
                     app.ui.windows.export = false;
                 }
+                ui.label(trf("{n} textures selected for export", &[("n", &selected)]));
             });
         });
     });

@@ -511,6 +511,13 @@ fn view_header(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, id: &str) {
         });
     }
 
+    view_mode_picker(app, &mut child, &format!("{id}_mode"), VIEW_PICKER_WIDTH);
+}
+
+/// The view-mode picker of a view's header and of Display Settings: the material, the channels, the mesh maps and the UV checker
+pub(crate) fn view_mode_picker(app: &mut TextureCraftApp, child: &mut Ui, id_salt: &str, width: f32) {
+    let project_open = app.session.project_open;
+
     // Bake mode lights the project mesh with the neutral material unless the painted one is asked for
     let baking = app.ui.mode == crate::state::Mode::Baking;
     let neutral = baking && app.session.view == ViewMode::Material && app.ui.bake_visualization.neutral_shown;
@@ -523,7 +530,7 @@ fn view_header(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, id: &str) {
 
     // The picker stays greyed without project maps
     child.add_enabled_ui(project_open, |child| {
-        egui::ComboBox::from_id_salt(format!("{id}_mode")).width(VIEW_PICKER_WIDTH).selected_text(tr(&label)).show_ui(child, |ui| {
+        egui::ComboBox::from_id_salt(id_salt).width(width).selected_text(tr(&label)).show_ui(child, |ui| {
             if baking && ui.selectable_label(neutral, tr("Neutral Material")).clicked() {
                 app.ui.bake_visualization.neutral_shown = true;
                 app.run("viewport.view", json!({"mode": "material"}));
