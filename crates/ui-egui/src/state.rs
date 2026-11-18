@@ -335,6 +335,9 @@ pub struct UiState {
     pub text: TextUi,
     /// Layer being renamed and the edit buffer.
     pub rename: Option<(u64, String)>,
+    /// Texture set being renamed in the Texture Sets list and the edit buffer.
+    #[serde(skip)]
+    pub set_rename: Option<(usize, String)>,
     pub new_project: NewProject,
     /// Show the UV wireframe in the 2D view.
     pub uv_wireframe: bool,
@@ -421,6 +424,7 @@ impl UiState {
         self.named_layouts = keep.named_layouts;
         self.layout_dialog = None;
         self.rename = None;
+        self.set_rename = None;
 
         // The shelf's search, type and folder are one query, and saved searches are the user's own
         self.shelf_filter = keep.shelf_filter;
@@ -457,6 +461,7 @@ impl Default for UiState {
             props_tab: PropsTab::Brush,
             text: TextUi::default(),
             rename: None,
+            set_rename: None,
             new_project: NewProject::default(),
             uv_wireframe: true,
             wireframe_3d: false,

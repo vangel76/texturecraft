@@ -86,6 +86,11 @@ before the edit is applied as one undo step. `model` still replaces the complete
 when combined, `patch` follows `model`, then the flat command parameters apply. Omitting `ts`
 still targets the active set for scripts that need individual control.
 
+`textureSet.next` and `textureSet.previous` make the next or previous texture set active (the
+last wraps to the first) and return `{ts}`; they are in the Viewport menu and take keys from
+Settings > Shortcuts, with no default key. `textureSet.rename {ts?, name}` renames a set, and
+`textureSet.resolution {resolution, all: true}` sizes every set (one undo step per set).
+
 The bake texture-set list shows visibility eyes and expandable UV tile rows. Visibility affects
 the viewport independently of bake inclusion. Its resolution menus edit the texture-set size
 (`textureSet.resolution`) and individual tile overrides (`textureSet.tile.resolution`), independently

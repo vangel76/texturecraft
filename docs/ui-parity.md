@@ -24,6 +24,13 @@ establish complete parity for its feature family.
 
 ## Missing controls and workflows
 
+Texture Sets list (gaps H7, H9 and H10 of the round 2 audit, issue 646): a set renames by
+double-click or from the row's right-click menu, the same menu hides, isolates and resizes the
+set and offers Same size for all sets (also in Texture Set Settings), and Next / Previous
+texture set are bindable commands without default keys. Covered by
+`crates/ui-egui/tests/it/texture_set_list.rs` and engine tests in `set_cmds.rs`. Clicking a set
+in the 3D view is not done.
+
 P1 affects frequent editing or delivery tasks. P2 is important depth or usability work. IDs are
 stable review references, not a complete inventory of the reference interface.
 

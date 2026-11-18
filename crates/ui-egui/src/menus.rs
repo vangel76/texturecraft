@@ -95,6 +95,8 @@ pub const CATALOG: &[Item] = &[
     sep("Viewport"),
     it("Viewport", "Frame texture set", "viewport.frameSelection", Some("Shift+F")),
     it("Viewport", "Show entire mesh", "viewport.frame", Some("F")),
+    it("Viewport", "Next texture set", "textureSet.next", None),
+    it("Viewport", "Previous texture set", "textureSet.previous", None),
     it("Viewport", "Front view", "camera.view.front", None),
     it("Viewport", "Back view", "camera.view.back", None),
     it("Viewport", "Left view", "camera.view.left", None),

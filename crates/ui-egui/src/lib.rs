@@ -170,6 +170,8 @@ pub struct TextureCraftApp {
     /// The Import PBR textures dialog while it is open.
     pub pbr_import: Option<pbr_import::PbrDialog>,
     pub resize: Option<ResizeJob>,
+    /// Sets still waiting for "same size for all sets" (set index, size), next one last.
+    resize_queue: Vec<(usize, u32)>,
     pub link_cooks: Vec<LinkCook>,
     pub thumbs: thumbs::Thumbs,
     /// The Layers panel's thumbnails and folded groups.
@@ -279,6 +281,7 @@ impl TextureCraftApp {
             bake: None,
             pbr_import: None,
             resize: None,
+            resize_queue: Vec::new(),
             link_cooks: Vec::new(),
             thumbs: thumbs::Thumbs::default(),
             layer_panel: layer_panel::LayerPanel::default(),
@@ -358,6 +361,7 @@ impl TextureCraftApp {
                 if matches!(id, "file.open" | "file.new" | "file.close" | "project.new" | "project.sample") {
                     self.pbr_import = None;
                     self.resize = None;
+                    self.resize_queue.clear();
                     self.layer_panel = Default::default();
                 }
 
@@ -610,6 +614,26 @@ impl TextureCraftApp {
         }
     }
 
+    /// Give every texture set size `resolution`: the sets resize one after the other on the
+    /// worker, each as its own undo step.
+    pub fn start_resize_all(&mut self, resolution: u32) {
+        if self.resize.is_some() {
+            return;
+        }
+        self.resize_queue =
+            self.session.doc.project.texture_sets.iter().enumerate().filter(|(_, t)| t.resolution != resolution).map(|(i, _)| (i, resolution)).rev().collect();
+        self.start_next_resize();
+    }
+
+    fn start_next_resize(&mut self) {
+        if let Some((ts, resolution)) = self.resize_queue.pop() {
+            self.start_resize(ts, resolution);
+            if self.resize.is_none() {
+                self.resize_queue.clear();
+            }
+        }
+    }
+
     /// Apply a finished resize (after any stroke in progress ends).
     fn poll_resize(&mut self, ctx: &egui::Context) {
         let Some(job) = &self.resize else { return };
@@ -617,6 +641,7 @@ impl TextureCraftApp {
         // Nothing to resize without a project (a result that arrives after Close is dropped)
         if !self.session.project_open {
             self.resize = None;
+            self.resize_queue.clear();
             return;
         }
 
@@ -632,7 +657,10 @@ impl TextureCraftApp {
         };
         self.resize = None;
         if let Err(e) = result.and_then(|out| self.session.apply_resize(out)) {
+            self.resize_queue.clear();
             self.toast(e.to_string(), true);
+        } else {
+            self.start_next_resize();
         }
     }
 

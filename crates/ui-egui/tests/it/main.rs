@@ -63,6 +63,7 @@ mod smudge_channels;
 mod snapped_lines;
 mod split_divider;
 mod template_invert;
+mod texture_set_list;
 mod tool_availability;
 mod tool_settings_saved;
 mod toolbar;

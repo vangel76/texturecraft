@@ -85,6 +85,7 @@ pub(crate) fn texture_set_list(app: &mut TextureCraftApp, ui: &mut Ui) {
     egui::ScrollArea::vertical().id_salt("ts_scroll").show(ui, |ui| {
         for (i, (name, size, visible)) in sets.into_iter().enumerate() {
             let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 22.0), Sense::click());
+            resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::ListBoxOption, true, i == active, &name));
             let p = ui.painter();
             let bg = if i == active {
                 tk.row_selected
@@ -117,15 +118,89 @@ pub(crate) fn texture_set_list(app: &mut TextureCraftApp, ui: &mut Ui) {
                 right = x - 8.0;
             }
             let color = if i == active { tk.text_strong } else { tk.text };
-            let g = elided(p, name, 12.0, color, right - rect.left() - 26.0);
-            p.galley(pos2(rect.left() + 26.0, cy - g.size().y * 0.5), g, color);
-            if eye_resp.clicked() {
+            let name_rect = Rect::from_min_max(pos2(rect.left() + 26.0, rect.top() + 1.0), pos2((right - 4.0).max(rect.left() + 60.0), rect.bottom() - 1.0));
+            let renaming = app.ui.set_rename.as_ref().is_some_and(|(ts, _)| *ts == i);
+            if renaming {
+                set_rename_editor(app, ui, name_rect, i, &name);
+            } else {
+                let g = elided(ui.painter(), name.clone(), 12.0, color, right - rect.left() - 26.0);
+                ui.painter().galley(pos2(rect.left() + 26.0, cy - g.size().y * 0.5), g, color);
+            }
+            if !renaming {
+                resp.context_menu(|ui| set_row_menu(app, ui, i, &name, visible));
+            }
+            if renaming {
+                // The editor owns the clicks of the row
+            } else if eye_resp.clicked() {
                 app.run("textureSet.visible", json!({"ts": i}));
+            } else if resp.double_clicked() {
+                app.run("textureSet.select", json!({"ts": i}));
+                app.ui.set_rename = Some((i, name.clone()));
             } else if resp.clicked() {
                 app.run("textureSet.select", json!({"ts": i}));
             }
         }
     });
+}
+
+/// Sizes the Texture Sets list offers (the same as Texture Set Settings)
+const SET_SIZES: [u32; 6] = [256, 512, 1024, 2048, 4096, 8192];
+
+/// The right-click menu of a list row.
+fn set_row_menu(app: &mut TextureCraftApp, ui: &mut Ui, ts: usize, name: &str, visible: bool) {
+    if ui.button(tr("Rename")).clicked() {
+        app.run("textureSet.select", json!({"ts": ts}));
+        app.ui.set_rename = Some((ts, name.to_string()));
+        ui.close();
+    }
+    if ui.button(if visible { tr("Hide") } else { tr("Show") }).clicked() {
+        app.run("textureSet.visible", json!({"ts": ts}));
+        ui.close();
+    }
+    if ui.button(tr("Show only this set")).clicked() {
+        app.run("textureSet.visibility", json!({"mode": "solo", "ts": ts}));
+        ui.close();
+    }
+    ui.separator();
+    let current = app.session.doc.project.texture_sets.get(ts).map(|t| t.resolution);
+    ui.menu_button(tr("Size"), |ui| {
+        for r in SET_SIZES {
+            if ui.selectable_label(Some(r) == current, format!("{r}")).clicked() {
+                app.start_resize(ts, r);
+                ui.close();
+            }
+        }
+    });
+    ui.menu_button(tr("Same size for all sets"), |ui| {
+        for r in SET_SIZES {
+            if ui.selectable_label(app.session.doc.project.texture_sets.iter().all(|t| t.resolution == r), format!("{r}")).clicked() {
+                app.start_resize_all(r);
+                ui.close();
+            }
+        }
+    });
+}
+
+/// The name editor of texture set `ts` in `rect`: Enter or a click elsewhere renames, Escape cancels.
+fn set_rename_editor(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, ts: usize, name: &str) {
+    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(egui::Layout::left_to_right(egui::Align::Center)));
+    let Some((_, buffer)) = app.ui.set_rename.as_mut() else { return };
+
+    // Escape reaches us instead of just unfocusing the field, so it can cancel
+    let filter = egui::EventFilter { horizontal_arrows: true, vertical_arrows: true, escape: true, ..Default::default() };
+    let response = child.add(egui::TextEdit::singleline(buffer).desired_width(rect.width()).event_filter(filter));
+    if ui.input(|input| input.key_pressed(egui::Key::Escape)) {
+        app.ui.set_rename = None;
+    } else if response.lost_focus() {
+        let new_name = buffer.trim().to_string();
+        app.ui.set_rename = None;
+        if !new_name.is_empty() && new_name != name {
+            app.run("textureSet.rename", json!({"ts": ts, "name": new_name}));
+        }
+    } else if !response.has_focus() {
+        // Only until the field has focus (see the layer rename editor)
+        response.request_focus();
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1506,6 +1581,11 @@ pub(crate) fn texture_set_settings(app: &mut TextureCraftApp, ui: &mut Ui) {
                     }
                 }
             });
+            ui.end_row();
+            ui.label("");
+            if ui.button(tr("Same size for all sets")).clicked() {
+                app.start_resize_all(set.resolution);
+            }
             ui.end_row();
             ui.label(tr("UV tiles (UDIM)"));
             let mut tiled = !set.uv_tiles.is_empty();
