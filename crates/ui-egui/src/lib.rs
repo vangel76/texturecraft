@@ -11,6 +11,8 @@ mod angle_dial;
 mod ask;
 mod bake_job;
 pub mod bake_mode;
+pub mod bake_presets;
+mod bake_report;
 mod bake_scene;
 mod color_selection_editor;
 pub mod control;
@@ -167,6 +169,8 @@ pub struct TextureCraftApp {
     /// Texture sets the GPU could not hold, and the text of the one sticky toast naming them.
     pub(crate) gpu_memory: (Vec<String>, Option<String>),
     pub bake: Option<BakeJob>,
+    /// What the bake running now has done so far, for the summary when it ends
+    pub bake_report: bake_report::BakeReport,
     /// The Import PBR textures dialog while it is open.
     pub pbr_import: Option<pbr_import::PbrDialog>,
     pub resize: Option<ResizeJob>,
@@ -277,6 +281,7 @@ impl TextureCraftApp {
             toasts: Vec::new(),
             gpu_memory: (Vec::new(), None),
             bake: None,
+            bake_report: Default::default(),
             pbr_import: None,
             resize: None,
             link_cooks: Vec::new(),
@@ -435,6 +440,7 @@ impl TextureCraftApp {
         }
 
         let total = sets.len();
+        self.bake_report = bake_report::BakeReport::started(self.last_time);
         self.bake = Some(BakeJob { queue: sets, current: None, total, mesh_id: self.session.mesh_id });
     }
 
@@ -528,19 +534,24 @@ impl TextureCraftApp {
             match running.receiver.try_recv() {
                 Ok(Ok(output)) => {
                     job.current = None;
-                    if let Err(error) = self.session.apply_streamed_bake(set_index, output) {
-                        self.toast(error.to_string(), true);
+                    let maps = output.maps.len();
+                    match self.session.apply_streamed_bake(set_index, output) {
+                        Ok(()) => self.bake_report.maps += maps,
+                        Err(error) => self.bake_failed(set_index, &error.to_string()),
                     }
                 }
                 Ok(Err(error)) => {
+                    // The worker's error ends the whole bake; the maps of the sets before it stay
+                    self.bake_failed(set_index, &error.to_string());
                     self.cancel_bake();
-                    self.toast(error.to_string(), true);
+                    self.finish_bake_report();
                     return;
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => return,
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    self.bake_failed(set_index, i18n::tr("The bake worker stopped"));
                     self.cancel_bake();
-                    self.toast(i18n::tr("The bake worker stopped"), true);
+                    self.finish_bake_report();
                     return;
                 }
             }
@@ -551,7 +562,7 @@ impl TextureCraftApp {
         if job.queue.is_empty() {
             self.bake = None;
             self.session.bake_preview_end();
-            self.toast(i18n::tr("Mesh maps baked"), false);
+            self.finish_bake_report();
             return;
         }
 
@@ -576,8 +587,21 @@ impl TextureCraftApp {
                     job.current = Some(RunningBake { set_index, progress, receiver, maps, maps_done, maps_total });
                 }
             }
-            Err(error) => self.toast(error.to_string(), true),
+            Err(error) => self.bake_failed(set_index, &error.to_string()),
         }
+    }
+
+    /// Note a texture set whose bake failed: one Log line, counted in the summary
+    fn bake_failed(&mut self, set_index: usize, error: &str) {
+        self.session.log.push(format!("Bake of texture set {set_index} failed: {error}"));
+        self.bake_report.failed.push(set_index);
+    }
+
+    /// The toast that ends a bake (maps baked, time, failures) and its line in the Log
+    fn finish_bake_report(&mut self) {
+        let (text, line, failed) = self.bake_report.summary(self.last_time);
+        self.session.log.push(line);
+        self.toast(text, failed);
     }
 
     /// Cancel the active worker, discard queued sets and restore the view. The current set's

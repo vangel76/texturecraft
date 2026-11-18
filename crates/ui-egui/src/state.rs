@@ -371,6 +371,12 @@ pub struct UiState {
     /// Panel arrangements saved under a name (Window > Layouts), in the order they were saved
     #[serde(default)]
     pub named_layouts: Vec<crate::named_layouts::NamedLayout>,
+    /// Bake settings saved under a name (Mesh Map Bakers > Presets), in the order they were saved
+    #[serde(default)]
+    pub bake_presets: Vec<crate::bake_presets::BakePreset>,
+    /// The name typed in the bake presets menu
+    #[serde(skip)]
+    pub bake_preset_name: String,
     /// The save, replace or manage dialog of the named layouts
     #[serde(skip)]
     pub layout_dialog: Option<crate::named_layouts::LayoutDialog>,
@@ -419,6 +425,7 @@ impl UiState {
         self.keymap = keep.keymap;
         self.tool_settings = keep.tool_settings;
         self.named_layouts = keep.named_layouts;
+        self.bake_presets = keep.bake_presets;
         self.layout_dialog = None;
         self.rename = None;
 
@@ -471,6 +478,8 @@ impl Default for UiState {
             tool_settings: Default::default(),
             bake_visualization: crate::bake_mode::BakeVisualizationToggles::default(),
             named_layouts: Vec::new(),
+            bake_presets: Vec::new(),
+            bake_preset_name: String::new(),
             layout_dialog: None,
         }
     }

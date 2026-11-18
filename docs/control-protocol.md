@@ -86,6 +86,12 @@ before the edit is applied as one undo step. `model` still replaces the complete
 when combined, `patch` follows `model`, then the flat command parameters apply. Omitting `ts`
 still targets the active set for scripts that need individual control.
 
+Bake presets are saved settings in the UI state (Mesh Map Bakers > Presets). Loading one is
+`bake.settings {ts: <index>, model: <the preset's settings>, preserveEnabled: true}`; Apply to All
+Texture Sets is the same with `ts: "all"` and the active set's `model`. Both are one undo step.
+When a bake started in the app ends, a toast gives the maps baked, the time and the failed sets, and
+the session log gets `Bake finished: N maps in T` and `Bake of texture set N failed: <error>`.
+
 The bake texture-set list shows visibility eyes and expandable UV tile rows. Visibility affects
 the viewport independently of bake inclusion. Its resolution menus edit the texture-set size
 (`textureSet.resolution`) and individual tile overrides (`textureSet.tile.resolution`), independently

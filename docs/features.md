@@ -134,6 +134,12 @@ Everything TextureCraft does today, by area. What's still missing is in [`ROADMA
   edited): drop one from the Assets panel on a slot of the Texture Set Settings, or pick it from
   the slot's menu. A UV-tiled set takes one image per tile, named with its tile number
   (`ao.1001.png`, `ao.1002.png`…): drop or pick any one of them.
+- **Bake presets:** Mesh Map Bakers > Presets saves the active texture set's bake settings under a
+  name, loads one back into the active set (its Include in Bake choice stays) and deletes it.
+  Presets are kept between sessions. **Apply to All Texture Sets** copies the active set's settings,
+  including its map list, to every set. When a bake ends, a toast names the maps baked, the time
+  and the failed sets (an error toast that points to the Log if any); the Log gets the same line
+  and one line per failed set.
 - **Live bake preview:** while the app bakes, each mesh map shows on the model as soon as it is
   finished; the bake bar follows the newest map, pins a finished one or shows the material.
 - **Export presets** for glTF PBR Metal Roughness, Unreal Engine (packed), Unity HDRP (mask map),

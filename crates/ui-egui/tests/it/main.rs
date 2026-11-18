@@ -4,6 +4,7 @@
 mod alpha_parameters;
 mod bake_job_mesh;
 mod bake_mode;
+mod bake_presets;
 mod brush_drag;
 mod brush_section_reset;
 mod camera_views;
