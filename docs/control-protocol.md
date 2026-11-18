@@ -491,6 +491,10 @@ Alt+drag orbit turn around the object being painted even with a floor plane or o
 the mesh. `viewport.frameSelection` (Shift+F) is the same as `target: "selection"`; a set with no triangles
 frames the whole mesh. Both return the camera like `camera.get`.
 
+## Pause Engine Computation
+
+`viewport.pauseEngine {paused?: bool}` (Shift+Esc, also the top bar button) sets or, without `paused`, toggles the pause and returns `{paused, pendingTiles}`. While paused, edits change the document and history, but the app composites no tiles and uploads no viewport textures; the changed tiles stay pending. Unpausing composites everything changed in the meantime. Export, mask export and clone/smudge pickup composite what they need even while paused, so their results are up to date. Saving writes the document, which does not depend on the textures. The command works without a project. The pause is not part of the project file.
+
 ## Camera views and projection
 
 `camera.view {view}` looks at the mesh from one side (`front` from +Z, `back`, `left` from -X,

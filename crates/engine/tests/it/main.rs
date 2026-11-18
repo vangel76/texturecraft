@@ -28,6 +28,7 @@ mod meshmap_import;
 mod painter_gaps;
 mod path_perf;
 mod path_tool;
+mod pause_engine_656;
 mod pbr_import;
 mod perf;
 mod polygon_fill;

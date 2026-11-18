@@ -35,6 +35,15 @@ pub fn specs() -> Vec<CommandSpec> {
         cmd!("viewport.previousChannel", "Display previous channel", ["Viewport"], Some("Shift+C"), "{}", always, |s, _| cycle_channel(s, -1)),
         cmd!("viewport.nextMeshMap", "Display next mesh map", ["Viewport"], Some("B"), "{}", always, |s, _| cycle_map(s, 1)),
         cmd!("viewport.previousMeshMap", "Display previous mesh map", ["Viewport"], Some("Shift+B"), "{}", always, |s, _| cycle_map(s, -1)),
+        cmd!(
+            "viewport.pauseEngine",
+            "Pause Engine Computation",
+            ["Viewport"],
+            Some("Shift+Esc"),
+            "{paused?: bool (toggles when absent)} → {paused, pendingTiles}; while paused, edits change the document and history but no texture is composited or shown; export and mask export still composite what they need",
+            always,
+            pause_engine
+        ),
         cmd!("viewport.view", "Set view mode", [], None, "{mode: material|uvChecker|mask|<channel id>|map:<mesh map id>, layer? (for mask)}", always, view),
         cmd!("camera.set", "Set camera", [], None, "{yaw?, pitch? (degrees), distance?, fov?, target?: [x,y,z], ortho?}", always, camera_set),
         cmd!("camera.get", "Get camera", [], None, "{}", always, |s, _| Ok(camera_json(s))),
@@ -131,6 +140,12 @@ fn set_view(s: &mut Session, v: ViewMode) -> Result<Value> {
     let v = s.view;
     s.revision = s.revision.wrapping_add(1);
     Ok(json!({ "view": v.label() }))
+}
+
+fn pause_engine(s: &mut Session, p: &Value) -> Result<Value> {
+    s.paused = boolp(p, "paused").unwrap_or(!s.paused);
+    s.revision = s.revision.wrapping_add(1);
+    Ok(json!({ "paused": s.paused, "pendingTiles": s.pending_tiles() }))
 }
 
 fn cycle_channel(s: &mut Session, d: i64) -> Result<Value> {

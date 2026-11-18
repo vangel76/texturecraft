@@ -92,6 +92,7 @@ pub const CATALOG: &[Item] = &[
     it("Viewport", "Display next mesh map", "viewport.nextMeshMap", Some("B")),
     it("Viewport", "Display previous mesh map", "viewport.previousMeshMap", Some("Shift+B")),
     it("Viewport", "UV checker", "ui.uvChecker", None),
+    it("Viewport", "Pause Engine Computation", "viewport.pauseEngine", Some("Shift+Esc")),
     sep("Viewport"),
     it("Viewport", "Frame texture set", "viewport.frameSelection", Some("Shift+F")),
     it("Viewport", "Show entire mesh", "viewport.frame", Some("F")),

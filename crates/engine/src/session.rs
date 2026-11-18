@@ -416,6 +416,9 @@ pub struct Session {
     /// Set by [`crate::execute`] from a command's `merge` param: its edits continue the previous
     /// undo step with the same label (a slider drag is one step however many values it applies).
     pub(crate) merge_edits: bool,
+    /// Pause Engine Computation: the UI skips its per-frame compositing and texture uploads, so edits only
+    /// mark tiles dirty. [`Session::update`] (export, mask bitmaps, pickup) still composites what it needs.
+    pub paused: bool,
     pub tool: ToolState,
     pub active_set: usize,
     /// Selected layer per texture set.
@@ -497,6 +500,7 @@ impl Session {
             undo: Vec::new(),
             redo: Vec::new(),
             merge_edits: false,
+            paused: false,
             tool: ToolState::default(),
             active_set: 0,
             selected,

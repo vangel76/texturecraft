@@ -159,6 +159,8 @@ Everything TextureCraft does today, by area. What's still missing is in [`ROADMA
   light, environment importance sampling, displaced geometry, a denoiser and one-click PNG save,
   traced on the GPU
   (compute shaders, about 25× the CPU tracer, desktop and WebGPU) or on the CPU.
+- Pause Engine Computation (Shift+Esc, top bar right group) stops compositing and viewport texture updates while you set up
+  several edits on a heavy stack; unpausing recomputes what changed, and export always uses up-to-date textures.
 - View any channel, any baked mesh map, or a UV checker; Alt+drag to orbit (Alt+Shift+drag in 90°
   steps), middle-drag to pan, wheel to zoom, F to show the entire mesh, Shift+F to frame the active
   texture set (a floor plane or other helper geometry stays out of the view and the orbit pivot),

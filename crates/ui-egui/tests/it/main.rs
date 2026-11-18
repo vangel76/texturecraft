@@ -42,6 +42,7 @@ mod nav_buttons;
 mod new_project_baked_maps;
 mod path_in_view;
 mod path_list;
+mod pause_engine_656;
 mod pen_pressure;
 mod polygon_fill;
 mod project_config;

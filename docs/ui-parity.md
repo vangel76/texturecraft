@@ -118,6 +118,9 @@ built-in `udim_plane`, a uniform fill and a tile-1002 resolution override.
   treat every older shelf-layout request as a currently missing implementation.
 - A missing mask-thumbnail menu does not mean mask effects are unavailable: the layer-name menu
   worked. A missing MaterialX UI option does not mean the exporter is absent.
+- The top bar right group has Pause Engine Computation (Shift+Esc), enabled without a project, with the
+  reference tooltip text. While paused no texture is composited or shown; export still uses up-to-date
+  results.
 
 ## Still unverified
 

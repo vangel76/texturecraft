@@ -76,8 +76,8 @@ pub fn paint_bar(app: &mut TextureCraftApp, ui: &mut egui::Ui) {
 
 /// Width of `view_buttons`, so the bar knows when to move them into the scrolling strip
 fn view_buttons_width(button_size: f32, spacing: f32) -> f32 {
-    // Two icons, two dropdowns, one separator and the four gaps between them
-    2.0 * button_size + 2.0 * icon_dropdown_button_width(button_size) + BAR_SEPARATOR_WIDTH + 4.0 * spacing
+    // Three icons, two dropdowns, two separators and the six gaps between them
+    3.0 * button_size + 2.0 * icon_dropdown_button_width(button_size) + 2.0 * BAR_SEPARATOR_WIDTH + 6.0 * spacing
 }
 
 /// View buttons in a right-to-left layout: the layout, then the camera type, then the screenshot and UV checker
@@ -101,6 +101,20 @@ fn view_buttons(app: &mut TextureCraftApp, ui: &mut egui::Ui) {
     ui.add(egui::Separator::default().spacing(BAR_SEPARATOR_WIDTH));
     ui.add_enabled_ui(project_open, |ui| projection_dropdown(app, ui));
     layout_dropdown(app, ui);
+    ui.add(egui::Separator::default().spacing(BAR_SEPARATOR_WIDTH));
+    pause_button(app, ui, button_size);
+}
+
+/// Pause Engine Computation: works without a project, and shows the paused state
+fn pause_button(app: &mut TextureCraftApp, ui: &mut egui::Ui, button_size: f32) {
+    let tooltip = tip(
+        &app.ui.keymap,
+        tr("Pause Engine Computation \u{2014} When the engine is paused, textures are not computed or updated in the layer stack or the viewport."),
+        "viewport.pauseEngine",
+    );
+    if icon_button(ui, ic::PAUSE, &tooltip, app.session.paused, button_size).clicked() {
+        crate::menus::invoke(app, &ui.ctx().clone(), "viewport.pauseEngine");
+    }
 }
 
 /// The 3D/2D, 3D-only and 2D-only layouts, showing the current one's icon
