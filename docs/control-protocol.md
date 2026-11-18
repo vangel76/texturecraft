@@ -40,6 +40,21 @@ result is `{files}`. A layer without an enabled mask is an error. The layer menu
 file runs it; Copy mask to clipboard puts the same mask on the system clipboard as an 8-bit
 grayscale image (the whole tile atlas for a UV-tiled set).
 
+`layer.lock {layer?, locked?}` locks a layer against painting (no `locked` toggles it) and returns
+`{locked}`. A stroke or a fill on a locked layer's content or mask, or on the mask or content of an
+instance whose source is locked, fails with an error and changes nothing; every other edit still
+works, and the quick mask is not part of the layer. The flag is saved with the project, is one undo
+step, and shows as `locked` in `project.inspect`. `mask.gammaCorrected {layer?, enabled?}` (the
+layer menu's Gamma corrected alpha/mask) marks the mask's grey values as sRGB encoded: they are
+converted to linear when the mask is applied. It is saved with the project, is one undo step and
+shows as `maskGammaCorrected` in `project.inspect`. `layer.exportChannels {layer?, path, format?}`
+(the layer menu's Export channels to files) writes the layer alone, with the other layers of its
+texture set hidden and its mask applied, as one image per channel it holds. The files are
+`<name>_<channel>.<ext>` (`wall_baseColor.png`) beside `path`, the format follows the extension of
+`path` (png, tga, tif, bmp, webp, exr, hdr, jpg) or `format`, and a UV-tiled set writes one file per
+tile with the tile number before the extension. The result is `{files, warnings}`. The document
+and the viewport are not changed.
+
 `effect.set {effect, filter: "blur", radius: 5}` replaces a filter in place, preserving its
 stack position, blend, opacity and visibility. Replacement filters start from defaults plus
 the supplied parameters; naming the current filter instead edits it without resetting omitted

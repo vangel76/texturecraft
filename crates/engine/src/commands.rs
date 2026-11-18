@@ -115,6 +115,7 @@ pub fn command_specs() -> &'static [CommandSpec] {
         v.extend(crate::instance_cmds::specs());
         v.extend(crate::mask_cmds::specs());
         v.extend(crate::mask_export::specs());
+        v.extend(crate::layer_channels::specs());
         v.extend(crate::color_selection_cmds::specs());
         v.extend(crate::effect_clipboard::specs());
         v.extend(crate::tool_cmds::specs());

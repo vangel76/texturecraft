@@ -31,6 +31,7 @@ mod history_panel;
 mod inactive_set_hint;
 mod layer_blending_options;
 mod layer_clipboard;
+mod layer_menu;
 mod layer_multi_select;
 mod layer_rename;
 mod layers_panel;

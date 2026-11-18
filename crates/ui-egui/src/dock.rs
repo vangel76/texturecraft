@@ -731,6 +731,22 @@ fn layer_row(app: &mut TextureCraftApp, ui: &mut Ui, layer: &Layer, depth: usize
 
     // Name (or rename editor) with the quieter subtitle under it
     let (name_rect, show_blend) = layer_name_layout(rect, x);
+    // A locked layer shows a lock at the right end of the name; a click unlocks it
+    let mut name_rect = name_rect;
+    if layer.locked && name_rect.width() >= MIN_NAME_WIDTH + LOCK_ICON_SIZE {
+        let lock = Rect::from_center_size(
+            pos2(name_rect.right() - LOCK_ICON_SIZE * 0.5, rect.center().y - NAME_LINE_GAP - LOCK_ICON_SIZE * 0.5),
+            vec2(LOCK_ICON_SIZE, LOCK_ICON_SIZE),
+        );
+        name_rect.set_right(name_rect.right() - LOCK_ICON_SIZE);
+        let lock_response =
+            ui.interact(lock, ui.scope_id().with(("lock", layer.id.0)), Sense::click()).on_hover_text(tr("Locked against painting: click to unlock"));
+        lock_response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, tr("Unlock layer")));
+        painter.text(lock.center(), egui::Align2::CENTER_CENTER, ic::LOCK_SIMPLE, egui::FontId::proportional(LOCK_ICON_SIZE), tokens.text_dim);
+        if lock_response.clicked() {
+            app.run("layer.lock", json!({"layer": layer.id.0, "locked": false}));
+        }
+    }
     let show_name = name_rect.width() >= MIN_NAME_WIDTH;
     if !show_name {
         row.clone().on_hover_text(&layer.name);
@@ -1294,6 +1310,25 @@ fn export_mask_file(app: &mut TextureCraftApp, layer: &Layer) {
     });
 }
 
+/// Ask for a file name and write `layer`'s channels there, one image per channel (`<name>_<channel>.<ext>`).
+#[cfg(not(target_arch = "wasm32"))]
+fn export_channels_files(app: &mut TextureCraftApp, layer: &Layer) {
+    use crate::file_dialogs::{Bound, FileDialog};
+    let lid = layer.id.0;
+    let set = app.session.doc.project.locate(layer.id).and_then(|(ts, _, _)| app.session.doc.project.texture_sets.get(ts).map(|set| set.name.clone()));
+    let name = format!("{}.png", texturecraft_engine::formats::export::sanitize_file_stem(&format!("{}_{}", set.unwrap_or_default(), layer.name)));
+    app.ask_file(
+        FileDialog::save().filter(tr("Image"), &["png", "tga", "tif", "bmp", "webp", "exr", "hdr", "jpg"]).file_name(name),
+        Bound::Project,
+        move |app, paths| {
+            let Some(path) = paths.first() else { return };
+            let Some(done) = app.run("layer.exportChannels", json!({"layer": lid, "path": path.display().to_string()})) else { return };
+            let count = done.get("files").and_then(Value::as_array).map_or(0, Vec::len);
+            app.toast(trf("Saved {count} channel images", &[("count", &count)]), false);
+        },
+    );
+}
+
 /// Put the evaluated mask of layer `id` on the system clipboard as an 8-bit grayscale image (the
 /// whole texture set; a UV-tiled set copies its tile atlas).
 fn copy_mask(app: &mut TextureCraftApp, ctx: &egui::Context, id: texturecraft_engine::core::LayerId) {
@@ -1306,6 +1341,9 @@ fn copy_mask(app: &mut TextureCraftApp, ctx: &egui::Context, id: texturecraft_en
         Err(e) => app.toast(e.to_string(), true),
     }
 }
+
+/// Size of the lock icon on a locked layer's row
+const LOCK_ICON_SIZE: f32 = 14.0;
 
 /// Width of the outline round a soloed layer's row
 const SOLO_OUTLINE_WIDTH: f32 = 2.0;
@@ -1411,6 +1449,7 @@ fn layer_context_menu(app: &mut TextureCraftApp, ui: &mut Ui, layer: &Layer) {
 
     // A switched-off mask has no values to export
     let mask_on = project.layers.get(&project.mask_owner(layer.id)).is_some_and(|l| l.mask.as_ref().is_some_and(|m| m.enabled));
+    let gamma = project.layers.get(&project.mask_owner(layer.id)).and_then(|l| l.mask.as_ref()).is_some_and(|m| m.gamma_corrected);
     run(app, ui, tr("Add white mask"), "mask.add.white", json!({"layer": lid}), layer.mask.is_none());
     run(app, ui, tr("Add black mask"), "mask.add.black", json!({"layer": lid}), layer.mask.is_none());
     run(app, ui, tr("Add mask with color selection"), "mask.add.colorSelection", json!({"layer": lid}), true);
@@ -1427,6 +1466,20 @@ fn layer_context_menu(app: &mut TextureCraftApp, ui: &mut Ui, layer: &Layer) {
     }
     if ui.add_enabled(mask_on, egui::Button::new(tr("Copy mask to clipboard"))).clicked() {
         copy_mask(app, ui.ctx(), layer.id);
+        ui.close();
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    if ui.button(tr("Export channels to files")).clicked() {
+        export_channels_files(app, layer);
+        ui.close();
+    }
+    if ui.add_enabled(has_mask, egui::Button::new(tr("Gamma corrected alpha/mask")).selected(gamma)).clicked() {
+        app.run("layer.select", json!({"layer": lid}));
+        app.run("mask.gammaCorrected", json!({"layer": lid}));
+        ui.close();
+    }
+    if ui.add(egui::Button::new(tr("Lock layer")).selected(layer.locked)).clicked() {
+        app.run("layer.lock", json!({"layer": lid}));
         ui.close();
     }
     geometry_mask_menu(app, ui, layer);

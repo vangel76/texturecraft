@@ -48,6 +48,15 @@ layer's mask, the resulting composite matching the engine-only result, and Save 
 the link. These run in the headless test harness; a live run in the native app on the integrated
 build is still not done.
 
+The layer menu also has the reference's **Gamma corrected alpha/mask** (checkable, saved with the
+project) and **Export channels to files** (a save dialog; one image per channel the layer holds, the
+layer alone). Unlike the reference, the file name is `<name>_<channel>.<ext>` beside the chosen
+name and there is no name pattern with tokens. **Lock layer** (a lock icon on the row, a click on it
+unlocks) was not measured in the reference: it is not part of the reference's layer menu in the
+batch 1 results, and its menu text is ours. Engine tests (`crates/engine/tests/it/layer_menu.rs`) and
+interface tests (`crates/ui-egui/tests/it/layer_menu.rs`) cover the commands, their undo and saving, the
+menu entries and the lock icon; a live run in the native app is not done.
+
 The relevant implementations are [layer rows, menus and fill/brush editors](../crates/ui-egui/src/dock.rs),
 [generator properties](../crates/ui-egui/src/generator_panel.rs),
 [export settings and parameters](../crates/ui-egui/src/windows.rs),

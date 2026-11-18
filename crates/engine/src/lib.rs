@@ -23,6 +23,7 @@ pub mod filter_lib;
 mod frame_target;
 pub mod inspect;
 pub mod instance_cmds;
+pub mod layer_channels;
 pub mod layer_cmds;
 pub mod layer_ops;
 pub mod layer_selection;

@@ -37,6 +37,7 @@ Everything TextureCraft does today, by area. What's still missing is in [`ROADMA
 
 ## Layers, masks and smart materials
 
+- **Layer menu**: **Gamma corrected alpha/mask** (a checkable mask item, saved with the project) reads the mask's grey values as sRGB encoded, **Export channels to files** writes a layer's channels as one image per channel, and **Lock layer** blocks paint strokes and fills on the layer and its mask; a locked layer shows a lock icon on its row, and a click on it unlocks.
 - **Paint, fill, folder and instance layers** with **32 blend modes per channel** (Normal through
   Normal map detail), per-channel opacity, visibility, color tags, drag-and-drop reordering,
   duplicate, group, flatten, cut, copy and paste across texture sets, and **geometry masks** that

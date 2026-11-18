@@ -66,10 +66,18 @@ impl Session {
     /// when painting a mask. Must run inside the stroke's history snapshot.
     fn paint_target(&mut self) -> Result<PaintTarget> {
         let id = self.selected_layer().ok_or_else(|| EngineError::Other("select a layer to paint on".into()))?;
+        if let Some(locked) = self.locked_error(id) {
+            return Err(locked);
+        }
 
         // Painting an instance paints its source unless its own mask overrides the mask
         let p = &self.doc.project;
         let id = if self.target == StackTarget::Mask { p.mask_owner(id) } else { p.content_layer(id).map_or(id, |l| l.id) };
+
+        // An instance paints its source: a locked source refuses too
+        if let Some(locked) = self.locked_error(id) {
+            return Err(locked);
+        }
         match self.target {
             StackTarget::Content => {
                 let l = self.doc.project.layer(id)?;

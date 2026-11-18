@@ -18,6 +18,7 @@ mod generator_inputs;
 mod gradient_map;
 mod high_poly_missed;
 mod instances;
+mod layer_menu;
 mod layer_multi_select;
 mod mask_clone_smudge;
 mod mask_export;

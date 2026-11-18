@@ -232,6 +232,8 @@ struct EffectPlan<'a> {
 
 struct MaskPlan<'a> {
     background: f32,
+    /// The mask's values are gamma encoded: the result is converted to linear.
+    gamma_corrected: bool,
     effects: Vec<EffectPlan<'a>>,
     /// A neighbourhood filter (blur, sharpen) precomputed over the region: continue the stack
     /// after effect `.0` starting from the field's value.
@@ -1138,7 +1140,7 @@ fn mask_plan<'a>(inp: &Inputs<'a>, id: LayerId, mask: &'a Mask, tx: u32, ty: u32
     }
 
     let start = filtered.and_then(|field| neighbourhood(&mask.effects, inp.gbuf.width).map(|(index, _, _)| (index, field)));
-    Some(MaskPlan { background, effects, start })
+    Some(MaskPlan { background, gamma_corrected: mask.gamma_corrected, effects, start })
 }
 
 fn plan<'a>(inp: &Inputs<'a>, list: &[LayerId], channels: &[Channel], tx: u32, ty: u32, depth: usize, fields: Option<&'a Fields>) -> Vec<Node<'a>> {
@@ -1632,7 +1634,8 @@ impl<'a, 'b> Texel<'a, 'b> {
         if let Some(last) = plan.effects.iter().take(skip).rposition(|e| matches!(e.kind, EffectKind::Anchor)) {
             self.mask_effects(plan, plan.background, 0, last + 1);
         }
-        self.mask_effects(plan, value, skip, plan.effects.len())
+        let value = self.mask_effects(plan, value, skip, plan.effects.len());
+        if plan.gamma_corrected { texturecraft_texel::srgb_to_linear(value) } else { value }
     }
 
     /// Mask effects `from..to` of `plan` over `value`, recording the anchors among them.
