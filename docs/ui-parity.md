@@ -114,6 +114,10 @@ built-in `udim_plane`, a uniform fill and a tile-1002 resolution override.
   view), Ctrl+right-drag, Ctrl+left-drag and the fine mode (Ctrl+Shift+right-drag changes size and
   hardness by a tenth). Pen precision in [#545](https://github.com/storytold/texturecraft/issues/545)
   still needs an input-device task test.
+- The Jitters section has "Position Jitter Axis" (Both / Single) and "Distribution" (Gaussian /
+  Uniform), labelled as in the reference. The reference behaviour was not measured: Both and Uniform
+  keep the previous behaviour, Single offsets only across the stamp, Gaussian clusters the offsets
+  near the centre. Old brushes load as Both and Uniform.
 - The shelf displayed four columns at the larger size, with type controls and search. Do not
   treat every older shelf-layout request as a currently missing implementation.
 - A missing mask-thumbnail menu does not mean mask effects are unavailable: the layer-name menu

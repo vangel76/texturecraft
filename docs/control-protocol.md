@@ -74,6 +74,10 @@ alone) and `alphaInvert` (swaps paint and no paint inside the stamp square). The
 procedural, library and imported alphas alike and are returned by `tool.brush` with the other
 values. The alpha's rotation is the brush `angle`.
 
+Position jitter (`jitterPosition`) takes two more keys: `jitterAxis` (`both`, the default, offsets
+across and along the stamp; `single` offsets only across it) and `jitterDistribution` (`uniform`,
+the default, spreads offsets evenly over the range; `gaussian` clusters them near the centre).
+
 Bake mode applies edits in Common Settings and Mesh Map Settings to every texture set. Each
 set keeps its own enabled mesh-map checkboxes and Include in Bake flag. Edits update only the
 changed fields; Restore Defaults resets the whole parameter section across all sets.

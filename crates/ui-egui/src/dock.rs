@@ -2267,7 +2267,9 @@ fn brush_section(app: &mut TextureCraftApp, ui: &mut Ui) {
         (brush.angle, brush.follow_path) = angle_fields(&defaults);
     }
 
-    let jitter_fields = |settings: &BrushSettings| (settings.jitter_size, settings.jitter_angle, settings.jitter_flow, settings.jitter_position);
+    let jitter_fields = |settings: &BrushSettings| {
+        (settings.jitter_size, settings.jitter_angle, settings.jitter_flow, settings.jitter_position, settings.jitter_axis, settings.jitter_distribution)
+    };
     if section_with_reset(ui, "sec_jitter", tr("Jitters"), false, jitter_fields(brush) == jitter_fields(&defaults), |ui| {
         let jitters = [(tr("Size jitter"), &mut brush.jitter_size), (tr("Angle jitter"), &mut brush.jitter_angle), (tr("Flow jitter"), &mut brush.jitter_flow)];
         for (label, jitter) in jitters {
@@ -2281,8 +2283,26 @@ fn brush_section(app: &mut TextureCraftApp, ui: &mut Ui) {
         if slider(ui, tr("Position jitter"), &mut position_jitter_percent, 0.0..=400.0, 0).changed() {
             brush.jitter_position = position_jitter_percent / 100.0;
         }
+
+        use texturecraft_engine::paint::{JitterAxis, JitterDistribution};
+        let axes = [(JitterAxis::Both, tr("Both")), (JitterAxis::Single, tr("Single"))];
+        let shown = axes.iter().find(|(axis, _)| *axis == brush.jitter_axis).map_or("", |(_, label)| label);
+        combo(ui, tr("Position Jitter Axis"), shown, |ui| {
+            for (axis, label) in axes {
+                ui.selectable_value(&mut brush.jitter_axis, axis, label);
+            }
+        });
+
+        let distributions = [(JitterDistribution::Gaussian, tr("Gaussian")), (JitterDistribution::Uniform, tr("Uniform"))];
+        let shown = distributions.iter().find(|(distribution, _)| *distribution == brush.jitter_distribution).map_or("", |(_, label)| label);
+        combo(ui, tr("Distribution"), shown, |ui| {
+            for (distribution, label) in distributions {
+                ui.selectable_value(&mut brush.jitter_distribution, distribution, label);
+            }
+        });
     }) {
-        (brush.jitter_size, brush.jitter_angle, brush.jitter_flow, brush.jitter_position) = jitter_fields(&defaults);
+        (brush.jitter_size, brush.jitter_angle, brush.jitter_flow, brush.jitter_position, brush.jitter_axis, brush.jitter_distribution) =
+            jitter_fields(&defaults);
     }
 
     let alignment_fields = |settings: &BrushSettings| (settings.alignment, settings.backface_culling, settings.angle_fade, settings.depth);

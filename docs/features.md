@@ -5,7 +5,7 @@ Everything TextureCraft does today, by area. What's still missing is in [`ROADMA
 ## Paint in 3D
 
 - **Brushes** with size, flow, stroke opacity, spacing, hardness, angle and follow path; size,
-  angle, flow and position jitter; tangent or camera alignment, angle fade, backface culling, lazy
+  angle, flow and position jitter (on both axes or only across the stamp, uniform or Gaussian); tangent or camera alignment, angle fade, backface culling, lazy
   mouse, X/Y/Z mirror and radial symmetry (copies paint the far side too, and in the 2D view they land where the 3D
   copies would) and pen pressure in the 3D and 2D views (Windows Ink pens, and pens that send touch events in the browser, such as on
   tablets; on Linux, macOS and desktop browsers a pen works as a mouse for now).

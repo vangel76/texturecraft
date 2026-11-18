@@ -4,7 +4,7 @@
 use serde_json::{Value, json};
 use texturecraft_core::Channel;
 use texturecraft_geom::glam::Vec2;
-use texturecraft_paint::{Alignment, BrushAlpha, MAX_RADIAL_COPIES, alphas};
+use texturecraft_paint::{Alignment, BrushAlpha, JitterAxis, JitterDistribution, MAX_RADIAL_COPIES, alphas};
 
 use crate::commands::{CommandSpec, always, bad, boolp, channel_param, color_of, color_param, f32p, strp, vec3};
 use crate::fill_hit_test::FillHitTest;
@@ -36,7 +36,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Brush settings",
             [],
             None,
-            "{size?: 0..100, flow?: 0..100, opacity?: 0..100, spacing?: 1..1000, hardness?: 0..100, angle?, followPath?, alignment?: tangent|camera, lazy?, jitterSize?, jitterAngle?, jitterFlow?, jitterPosition?, alpha?: procedural name | {image: resource name} | {library: id (alpha.list)}, alphaSizeX?: 5..100 and alphaSizeY?: 5..100 (percent of the stamp the alpha fills), alphaRoundness?: 0..100 (Round alpha only: 100 circle, 0 square), alphaContrast?: 1..8, alphaInvert?, backfaceCulling?, symmetryOn? (the toolbar toggle; off keeps the settings), symmetryX?, symmetryY?, symmetryZ?, symmetryRadial?: 0..32 copies around symmetryAxis?: x|y|z (default y), symmetryOffset?: [x, y, z] (world units from the mesh center, where the mirror planes and radial axis cross), symmetryAngleSpan?: 0..360 degrees the radial copies spread over, minSize?, smudgeStrength?: 0..100, cloneSource?: composite|layer (what the Clone tool copies), cloneAligned? (default true: the first stroke fixes the offset to the source for the following strokes; false: every stroke starts sampling at the source point), particles?: {enabled?, count?: 1..16, lifetime?: 1..128 steps, gravity?: 0..2}}",
+            "{size?: 0..100, flow?: 0..100, opacity?: 0..100, spacing?: 1..1000, hardness?: 0..100, angle?, followPath?, alignment?: tangent|camera, lazy?, jitterSize?, jitterAngle?, jitterFlow?, jitterPosition?, jitterAxis?: both|single, jitterDistribution?: uniform|gaussian, alpha?: procedural name | {image: resource name} | {library: id (alpha.list)}, alphaSizeX?: 5..100 and alphaSizeY?: 5..100 (percent of the stamp the alpha fills), alphaRoundness?: 0..100 (Round alpha only: 100 circle, 0 square), alphaContrast?: 1..8, alphaInvert?, backfaceCulling?, symmetryOn? (the toolbar toggle; off keeps the settings), symmetryX?, symmetryY?, symmetryZ?, symmetryRadial?: 0..32 copies around symmetryAxis?: x|y|z (default y), symmetryOffset?: [x, y, z] (world units from the mesh center, where the mirror planes and radial axis cross), symmetryAngleSpan?: 0..360 degrees the radial copies spread over, minSize?, smudgeStrength?: 0..100, cloneSource?: composite|layer (what the Clone tool copies), cloneAligned? (default true: the first stroke fixes the offset to the source for the following strokes; false: every stroke starts sampling at the source point), particles?: {enabled?, count?: 1..16, lifetime?: 1..128 steps, gravity?: 0..2}}",
             always,
             brush
         ),
@@ -179,6 +179,20 @@ fn brush(session: &mut Session, params: &Value) -> Result<Value> {
     }
     if let Some(value) = f32p(params, "jitterPosition") {
         settings.jitter_position = value / 100.0;
+    }
+    if let Some(axis) = strp(params, "jitterAxis") {
+        settings.jitter_axis = match axis {
+            "both" => JitterAxis::Both,
+            "single" => JitterAxis::Single,
+            other => return Err(bad("tool.brush", format!("unknown jitterAxis `{other}` (both|single)"))),
+        };
+    }
+    if let Some(distribution) = strp(params, "jitterDistribution") {
+        settings.jitter_distribution = match distribution {
+            "uniform" => JitterDistribution::Uniform,
+            "gaussian" => JitterDistribution::Gaussian,
+            other => return Err(bad("tool.brush", format!("unknown jitterDistribution `{other}` (uniform|gaussian)"))),
+        };
     }
 
     let alpha = params.get("alpha");
