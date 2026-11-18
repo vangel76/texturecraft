@@ -81,8 +81,8 @@ pub use fill_mode::FillMode;
 pub use path_tool::PathState;
 pub use project_cmds::sample_session;
 pub use session::{
-    CloneFrom, CloneSource, Document, HISTORY_TEMPLATES, Session, SetCache, StackTarget, StencilLook, StencilState, Tool, ToolState, ViewMode, history_label,
-    stroke_template,
+    CloneFrom, CloneSource, Document, HISTORY_TEMPLATES, Session, SetCache, StackTarget, StencilLook, StencilState, StencilTiling, Tool, ToolState, ViewMode,
+    history_label, stroke_template,
 };
 pub use set_cmds::{ResizeOutput, ResizeTask};
 pub use solo::Solo;

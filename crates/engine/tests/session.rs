@@ -459,7 +459,7 @@ fn projection_tool_paints_the_stencil_colors() {
     execute(&mut s, "tool.projection", &Value::Null).unwrap();
     // Without a stencil the tool explains what's missing.
     assert!(execute(&mut s, "tool.stroke", &json!({"points": [[150, 200]]})).is_err());
-    execute(&mut s, "tool.stencil", &json!({"image": name, "scale": 1.0, "tile": true})).unwrap();
+    execute(&mut s, "tool.stencil", &json!({"image": name, "scale": 1.0, "tiling": "both"})).unwrap();
     execute(&mut s, "tool.brush", &json!({"size": 6, "hardness": 90})).unwrap();
     for x in [150.0f32, 250.0] {
         execute(&mut s, "tool.stroke", &json!({"points": [[x, 200.0]]})).unwrap();
@@ -830,9 +830,12 @@ fn resetting_a_stencil_puts_back_its_placement_only() {
     stencil.scale = 2.0;
     stencil.rotation = 30.0;
     stencil.opacity = 0.9;
-    stencil.tile = true;
+    stencil.tiling = texturecraft_engine::StencilTiling::Both;
     stencil.reset_placement();
-    assert_eq!((stencil.center, stencil.scale, stencil.rotation, stencil.opacity, stencil.tile), ([0.0, 0.0], 0.8, 0.0, 0.9, true));
+    assert_eq!(
+        (stencil.center, stencil.scale, stencil.rotation, stencil.opacity, stencil.tiling),
+        ([0.0, 0.0], 0.8, 0.0, 0.9, texturecraft_engine::StencilTiling::Both)
+    );
 }
 
 #[test]

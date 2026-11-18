@@ -67,7 +67,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Projection stencil",
             [],
             None,
-            "{image?: resource name, center?: [x,y] NDC, scale?: 0.01..10, rotation?: degrees, tile?, opacity?, clear?: bool}",
+            "{image?: resource name, center?: [x,y] NDC, scale?: 0.01..10, rotation?: degrees, tiling?: none|horizontal|vertical|both (repeat along the stencil's X, Y or both; `tile`: true/false still works, true is both), opacity?, clear?: bool}",
             always,
             stencil
         ),
@@ -420,8 +420,9 @@ fn stencil(session: &mut Session, params: &Value) -> Result<Value> {
     if let Some(rotation) = f32p(params, "rotation") {
         stencil_state.rotation = rotation.rem_euclid(360.0);
     }
-    if let Some(tile) = boolp(params, "tile") {
-        stencil_state.tile = tile;
+    if let Some(value) = params.get("tiling").or_else(|| params.get("tile")) {
+        stencil_state.tiling =
+            crate::session::StencilTiling::from_value(value).ok_or_else(|| bad("tool.stencil", "`tiling` must be none, horizontal, vertical or both"))?;
     }
     if let Some(opacity) = f32p(params, "opacity") {
         stencil_state.opacity = opacity.clamp(0.0, 1.0);

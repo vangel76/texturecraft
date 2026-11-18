@@ -4,6 +4,7 @@
 use egui::{Color32, Rect, RichText, Sense, Stroke, Ui, pos2, vec2};
 use egui_phosphor::regular as ic;
 use serde_json::{Value, json};
+use texturecraft_engine::StencilTiling;
 use texturecraft_engine::compose::ThumbTarget;
 use texturecraft_engine::core::{
     BakedMap, BlendMode, Channel, ChannelBlend, ChannelKind, Decal, DecalFlip, Effect, EffectKind, Fill, Filter, Layer, LayerId, LayerKind, LinkParam,
@@ -1995,7 +1996,18 @@ fn stencil_section(app: &mut TextureCraftApp, ui: &mut Ui) {
             st.reset_placement();
         }
         slider(ui, tr("Overlay opacity"), &mut st.opacity, 0.0..=1.0, 2);
-        ui.checkbox(&mut st.tile, tr("Tile"));
+        let tilings = [
+            (StencilTiling::None, tr("No Tiling")),
+            (StencilTiling::Horizontal, tr("Horizontal Tiling")),
+            (StencilTiling::Vertical, tr("Vertical Tiling")),
+            (StencilTiling::Both, tr("H and V Tiling")),
+        ];
+        let shown = tilings.iter().find(|(mode, _)| *mode == st.tiling).map_or("", |(_, label)| label);
+        combo(ui, tr("Tiling mode"), shown, |ui| {
+            for (mode, label) in tilings {
+                ui.selectable_value(&mut st.tiling, mode, label);
+            }
+        });
         ui.label(
             RichText::new(tr("S + left-drag rotates (with Shift in 15° steps), S + right-drag scales, S + middle-drag moves; or use Position X / Y."))
                 .size(10.5)

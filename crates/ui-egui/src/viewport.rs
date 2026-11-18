@@ -1294,6 +1294,15 @@ fn decal_overlay(app: &mut TextureCraftApp, ui: &Ui, rect: Rect) {
     }
 }
 
+/// How far from the placed image the overlay repeats it along a tiled axis of half extent `half` (screen units, view is -1..1)
+fn tiled_steps(tiled: bool, half: f32) -> i32 {
+    // The view reaches at most this far from the stencil's center in any direction, even when offset
+    const REACH: f32 = 6.0;
+    // A tiny stencil would need thousands of quads; the overlay only hints at the repeat
+    const MAX_STEPS: i32 = 24;
+    if tiled { ((REACH / (2.0 * half.max(1e-3))).ceil() as i32).min(MAX_STEPS) } else { 0 }
+}
+
 /// Draw the projection stencil in Paint Mode
 fn stencil_overlay(app: &mut TextureCraftApp, ui: &Ui, rect: Rect) {
     if !tool_acts(app) || app.session.tool.tool != Tool::Projection {
@@ -1315,10 +1324,18 @@ fn stencil_overlay(app: &mut TextureCraftApp, ui: &Ui, rect: Rect) {
 
     let tint = Color32::from_white_alpha((stencil.opacity * f32::from(u8::MAX)) as u8);
     let mut mesh = egui::Mesh::with_texture(texture.id());
-    for (x, y, u, v) in [(-1.0, 1.0, 0.0, 0.0), (1.0, 1.0, 1.0, 0.0), (1.0, -1.0, 1.0, 1.0), (-1.0, -1.0, 0.0, 1.0)] {
-        mesh.vertices.push(egui::epaint::Vertex { pos: corner(x, y), uv: pos2(u, v), color: tint });
+    // Repeats along the tiled axes, as many as reach past the view (the placed image is step 0)
+    let (steps_x, steps_y) = (tiled_steps(stencil.tiling.horizontal(), half_size[0]), tiled_steps(stencil.tiling.vertical(), half_size[1]));
+    for step_y in -steps_y..=steps_y {
+        for step_x in -steps_x..=steps_x {
+            let (shift_x, shift_y) = (step_x as f32 * 2.0, step_y as f32 * 2.0);
+            let first = mesh.vertices.len() as u32;
+            for (x, y, u, v) in [(-1.0, 1.0, 0.0, 0.0), (1.0, 1.0, 1.0, 0.0), (1.0, -1.0, 1.0, 1.0), (-1.0, -1.0, 0.0, 1.0)] {
+                mesh.vertices.push(egui::epaint::Vertex { pos: corner(x + shift_x, y + shift_y), uv: pos2(u, v), color: tint });
+            }
+            mesh.indices.extend_from_slice(&[first, first + 1, first + 2, first, first + 2, first + 3]);
+        }
     }
-    mesh.indices.extend_from_slice(&[0, 1, 2, 0, 2, 3]);
     let painter = ui.painter_at(rect);
     painter.add(egui::Shape::mesh(mesh));
 

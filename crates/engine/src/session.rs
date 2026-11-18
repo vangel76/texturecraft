@@ -14,7 +14,7 @@ use texturecraft_paint::{BrushSettings, EyeDepth, Stroke, StrokeCanvas};
 use texturecraft_texel::DilationMap;
 
 use crate::fill_mode::FillMode;
-pub use crate::stencil_look::StencilLook;
+pub use crate::stencil_look::{StencilLook, StencilTiling};
 use crate::{EngineError, Result};
 
 /// Padding (texels) applied to composites for display.
@@ -175,8 +175,9 @@ pub struct StencilState {
     pub scale: f32,
     /// Rotation in degrees.
     pub rotation: f32,
-    /// Repeat the image across the screen.
-    pub tile: bool,
+    /// Which directions repeat the image across the screen (old projects saved an on/off switch: on is both).
+    #[serde(alias = "tile")]
+    pub tiling: StencilTiling,
     /// Overlay opacity in the viewport (display only).
     pub opacity: f32,
 }
@@ -188,11 +189,11 @@ impl StencilState {
 
     /// A stencil of `image` placed as `look` says.
     pub fn with_look(image: &str, look: StencilLook) -> StencilState {
-        StencilState { image: image.to_string(), center: look.center, scale: look.scale, rotation: look.rotation, tile: look.tile, opacity: look.opacity }
+        StencilState { image: image.to_string(), center: look.center, scale: look.scale, rotation: look.rotation, tiling: look.tiling, opacity: look.opacity }
     }
 
     pub fn look(&self) -> StencilLook {
-        StencilLook { center: self.center, scale: self.scale, rotation: self.rotation, tile: self.tile, opacity: self.opacity }
+        StencilLook { center: self.center, scale: self.scale, rotation: self.rotation, tiling: self.tiling, opacity: self.opacity }
     }
 
     /// Back to the placement a new stencil starts with (center, scale and rotation); the image, tiling and opacity stay.

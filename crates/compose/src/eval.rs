@@ -49,8 +49,9 @@ pub struct Stencil {
     pub center: [f32; 2],
     pub half: [f32; 2],
     pub rotation: f32,
-    /// Repeat the image beyond its bounds (otherwise nothing is painted outside it).
-    pub tile: bool,
+    /// Repeat the image beyond its bounds along its own X and Y axes (otherwise nothing is painted outside it on that axis).
+    pub tile_x: bool,
+    pub tile_y: bool,
 }
 
 impl Stencil {
@@ -64,7 +65,7 @@ impl Stencil {
         let (sn, cs) = (-self.rotation).sin_cos();
         let lx = (dx * cs - dy * sn) / self.half[0].max(1e-6);
         let ly = (dx * sn + dy * cs) / self.half[1].max(1e-6);
-        if !self.tile && (lx.abs() > 1.0 || ly.abs() > 1.0) {
+        if (!self.tile_x && lx.abs() > 1.0) || (!self.tile_y && ly.abs() > 1.0) {
             return None;
         }
         let s = self.image.sample(lx * 0.5 + 0.5, 0.5 - ly * 0.5);
@@ -2795,6 +2796,31 @@ mod tests {
     use super::*;
     use texturecraft_core::{ChannelBlend, Effect, Layer, OutputResolution, Procedural, ProceduralKind, ResolutionMode, TextureSet};
     use texturecraft_geom::primitives;
+
+    #[test]
+    fn a_stencil_repeats_only_along_its_tiled_axes() {
+        let image = Arc::new(crate::store::ImageRes { width: 2, height: 2, rgba: vec![[1.0; 4]; 4], srgb: false });
+        let stencil = |tile_x, tile_y| Stencil {
+            image: image.clone(),
+            view_proj: texturecraft_geom::glam::Mat4::IDENTITY,
+            center: [0.0, 0.0],
+            half: [0.5, 0.5],
+            rotation: 0.0,
+            tile_x,
+            tile_y,
+        };
+        let painted = |stencil: &Stencil, x: f32, y: f32| stencil.sample_world(Vec3::new(x, y, 0.0)).is_some();
+        // Inside the placed image, one cell right of it, one cell above it, and diagonal
+        for (tile_x, tile_y, right, above, diagonal) in
+            [(false, false, false, false, false), (true, false, true, false, false), (false, true, false, true, false), (true, true, true, true, true)]
+        {
+            let stencil = stencil(tile_x, tile_y);
+            assert!(painted(&stencil, 0.1, 0.1));
+            assert_eq!(painted(&stencil, 1.1, 0.1), right, "right of the image, tile_x {tile_x}, tile_y {tile_y}");
+            assert_eq!(painted(&stencil, 0.1, 1.1), above, "above the image, tile_x {tile_x}, tile_y {tile_y}");
+            assert_eq!(painted(&stencil, 1.1, 1.1), diagonal, "diagonal, tile_x {tile_x}, tile_y {tile_y}");
+        }
+    }
 
     struct Fixture {
         project: Project,

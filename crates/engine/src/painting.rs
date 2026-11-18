@@ -390,7 +390,15 @@ impl Session {
         let image = self.images.get(&st.image)?.clone();
         let aspect = viewport.x.max(1.0) / viewport.y.max(1.0);
         let (center, half, rotation) = st.placement(image.width as f32 / image.height.max(1) as f32, aspect);
-        Some(texturecraft_compose::Stencil { image, view_proj: self.camera.view_proj(aspect), center, half, rotation, tile: st.tile })
+        Some(texturecraft_compose::Stencil {
+            image,
+            view_proj: self.camera.view_proj(aspect),
+            center,
+            half,
+            rotation,
+            tile_x: st.tiling.horizontal(),
+            tile_y: st.tiling.vertical(),
+        })
     }
 
     /// Painting is paused while a bake preview shows the baked maps instead of the material.
