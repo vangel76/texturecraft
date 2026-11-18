@@ -7,6 +7,7 @@ mod bake_mode;
 mod brush_drag;
 mod brush_section_reset;
 mod camera_views;
+mod channel_format;
 mod clone_source_view;
 mod close_unsaved;
 mod color_picker;

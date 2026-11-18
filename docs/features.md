@@ -117,7 +117,10 @@ Everything TextureCraft does today, by area. What's still missing is in [`ROADMA
   and one texture per tile on export (`$udim`).
 - **Texture sets** from 128 to 8192 px per material, resampled when you change them, with 21
   channel types to add or remove. Show, hide or invert them all at once, or **focus** on the
-  active one. The project's **normal map format** (OpenGL or DirectX, in Texture Set Settings)
+  active one. Each channel row in Texture Set Settings has a **storage format** menu (sRGB8, RGB8,
+  RGB16, RGB16F, RGB32F for colour and normal channels; L8, L16, L16F, L32F for grey ones); picking
+  an 8 bit format rounds the channel's painted layer data to 256 steps, one undo step
+  (`textureSet.channel.format`). The project's **normal map format** (OpenGL or DirectX, in Texture Set Settings)
   says how a normal map image set as a mesh map is read, and is the default for export.
 - **Projects** are a single `.tcraft` file: the mesh, every layer (sparse and lossless), baked maps
   and imported images. **Project templates** start new work from a saved setup. Closing the app,

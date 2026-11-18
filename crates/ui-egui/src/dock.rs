@@ -6,8 +6,8 @@ use egui_phosphor::regular as ic;
 use serde_json::{Value, json};
 use texturecraft_engine::compose::ThumbTarget;
 use texturecraft_engine::core::{
-    BakedMap, BlendMode, Channel, ChannelBlend, ChannelKind, Decal, DecalFlip, Effect, EffectKind, Fill, Filter, Layer, LayerId, LayerKind, LinkParam,
-    MaterialLink, Projection, Source,
+    BakedMap, BlendMode, Channel, ChannelBlend, ChannelFormat, ChannelKind, Decal, DecalFlip, Effect, EffectKind, Fill, Filter, Layer, LayerId, LayerKind,
+    LinkParam, MaterialLink, Projection, Source,
 };
 use texturecraft_engine::filter_lib::scalar_params;
 use texturecraft_engine::paint::alpha_params::MAX_ALPHA_CONTRAST;
@@ -1551,7 +1551,13 @@ pub(crate) fn texture_set_settings(app: &mut TextureCraftApp, ui: &mut Ui) {
                     if *c != Channel::BaseColor && icon_button(ui, ic::X, tr("Remove channel"), false, 18.0).clicked() {
                         app.run("textureSet.channel.remove", json!({"ts": ts, "channel": c.id()}));
                     }
-                    ui.label(RichText::new(f.label()).color(tk.text_dim));
+                    egui::ComboBox::from_id_salt(("ts_channel_format", c.id())).width(84.0).selected_text(f.label()).show_ui(ui, |ui| {
+                        for option in ChannelFormat::options_for(*c) {
+                            if ui.selectable_label(option == *f, option.label()).clicked() && option != *f {
+                                app.run("textureSet.channel.format", json!({"ts": ts, "channel": c.id(), "format": option.label()}));
+                            }
+                        }
+                    });
                 });
             });
         }

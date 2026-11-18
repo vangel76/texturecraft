@@ -208,6 +208,38 @@ pub(crate) fn resample_set(doc: &mut Document, ts: usize, size: (u32, u32)) {
     map_set_images(doc, ts, |img, empty| fit(img, size, empty));
 }
 
+/// Round the colour components of every painted image of channel `c` in texture set `ts` to `bits` bits (8: 256 steps), as storing the channel in an 8 bit format does. The last component (paint coverage) is kept.
+pub(crate) fn quantize_set_channel(doc: &mut Document, ts: usize, c: Channel, bits: u32) {
+    if bits >= 16 {
+        return;
+    }
+    let ids: Vec<LayerId> = doc.project.walk(ts).into_iter().map(|(id, _)| id).collect();
+    let effect_ids: Vec<LayerId> = ids
+        .iter()
+        .filter_map(|id| doc.project.layers.get(id))
+        .flat_map(|l| l.mask.iter().flat_map(|m| m.effects.iter()).chain(l.content_effects.iter()).map(|e| e.id))
+        .collect();
+    let max = ((1u32 << bits) - 1) as f32;
+    let round = |v: u16| ((f32::from(v) / 65535.0 * max).round() / max * 65535.0).round() as u16;
+    for ((id, ch), img) in doc.pixels.layers.iter_mut() {
+        if *ch != c || !(ids.contains(id) || effect_ids.contains(id)) {
+            continue;
+        }
+        let comps = img.comps();
+        let fill = vec![0u16; comps];
+        let coords: Vec<(u32, u32)> = img.allocated().collect();
+        for (tx, ty) in coords {
+            if let Some(tile) = img.tile_mut(tx, ty, &fill) {
+                for texel in tile.chunks_exact_mut(comps) {
+                    for v in texel.iter_mut().take(comps - 1) {
+                        *v = round(*v);
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Replace every painted image of texture set `ts` (layers, content and mask paint effects) by
 /// `f(image, empty texel)`.
 pub(crate) fn map_set_images(doc: &mut Document, ts: usize, f: impl Fn(&TileImage, &[u16]) -> TileImage) {

@@ -86,6 +86,11 @@ before the edit is applied as one undo step. `model` still replaces the complete
 when combined, `patch` follows `model`, then the flat command parameters apply. Omitting `ts`
 still targets the active set for scripts that need individual control.
 
+`textureSet.channel.format {ts?, channel, format}` sets a channel's storage format (`sRGB8`, `RGB8`,
+`RGB16`, `RGB16F`, `RGB32F` for colour and normal channels; `L8`, `L16`, `L16F`, `L32F` for grey
+ones) and, going to fewer bits, rounds the channel's painted layer data (8 bit: 256 steps) in one
+undo step. A format of the other family, or a channel the set lacks, is an error.
+
 The bake texture-set list shows visibility eyes and expandable UV tile rows. Visibility affects
 the viewport independently of bake inclusion. Its resolution menus edit the texture-set size
 (`textureSet.resolution`) and individual tile overrides (`textureSet.tile.resolution`), independently

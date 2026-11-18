@@ -27,6 +27,15 @@ pub fn specs() -> Vec<CommandSpec> {
         cmd!("textureSet.resolution", "Texture set size", [], None, "{ts?, resolution: 128..8192 (power of two)}", always, resolution),
         cmd!("textureSet.channel.add", "Add channel", [], None, "{ts?, channel}", always, |s, p| channel(s, p, true)),
         cmd!("textureSet.channel.remove", "Remove channel", [], None, "{ts?, channel}", always, |s, p| channel(s, p, false)),
+        cmd!(
+            "textureSet.channel.format",
+            "Change channel format",
+            [],
+            None,
+            "{ts?, channel, format: sRGB8|RGB8|RGB16|RGB16F|RGB32F for colour and normal channels, L8|L16|L16F|L32F for grey ones} — converts the channel's layer data (8 bit rounds it to 256 steps); one undo step",
+            always,
+            channel_format
+        ),
         cmd!("textureSet.visible", "Toggle texture set visibility", [], None, "{ts?, visible?}", always, visible),
         cmd!(
             "textureSet.visibility",
@@ -211,6 +220,39 @@ fn channel(s: &mut Session, p: &Value, add: bool) -> Result<Value> {
         Ok(())
     })?;
     Ok(Value::Null)
+}
+
+fn channel_format(s: &mut Session, p: &Value) -> Result<Value> {
+    let cmd = "textureSet.channel.format";
+    let ts = ts_param(s, p, cmd)?;
+    let c = channel_param(cmd, p, "channel")?.ok_or_else(|| bad(cmd, "`channel` is required"))?;
+    let name = strp(p, "format").ok_or_else(|| bad(cmd, "`format` is required"))?;
+    let format = ChannelFormat::parse(name).ok_or_else(|| bad(cmd, format!("unknown format `{name}`")))?;
+    if !ChannelFormat::options_for(c).contains(&format) {
+        return Err(bad(cmd, format!("{} can't be stored as {}", c.label(), format.label())));
+    }
+    let old = s
+        .doc
+        .project
+        .texture_set(ts)?
+        .channels
+        .iter()
+        .find(|(x, _)| *x == c)
+        .map(|(_, f)| *f)
+        .ok_or_else(|| bad(cmd, format!("the set has no {} channel", c.label())))?;
+    if old == format {
+        return Ok(json!({ "format": format.label() }));
+    }
+    s.edit("Change channel format", |s| {
+        if format.bits() < old.bits() {
+            crate::layer_ops::quantize_set_channel(&mut s.doc, ts, c, format.bits());
+        }
+        if let Some(slot) = s.doc.project.texture_set_mut(ts)?.channels.iter_mut().find(|(x, _)| *x == c) {
+            slot.1 = format;
+        }
+        Ok(())
+    })?;
+    Ok(json!({ "format": format.label() }))
 }
 
 /// Add channel `c` to texture set `ts` (no-op when present) and enable it on the set's layers.
