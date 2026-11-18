@@ -75,6 +75,7 @@ mod resource_picker_tile;
 mod running_bake;
 pub mod saved_search;
 mod screen_color_pick;
+pub mod settings_window;
 pub mod shelf;
 mod shelf_entry;
 mod shelf_folders;
@@ -227,6 +228,8 @@ pub struct TextureCraftApp {
     pub(crate) prompt_saved: bool,
     /// The resolved keymap and its key dispatcher.
     pub(crate) bindings: keymap::Bindings,
+    /// The shortcuts Settings > Shortcuts edits, resolved to show shared shortcuts.
+    pub(crate) settings_bindings: keymap::Bindings,
 }
 
 /// The UI state to start with: the saved one, whose tool settings go to `session`, else the defaults in the OS language
@@ -238,7 +241,7 @@ pub(crate) fn start_ui(saved: Option<UiState>, session: &mut Session) -> UiState
         }
         None => {
             let mut ui = UiState::default();
-            ui.prefs.language = i18n::os_language().into();
+            ui.prefs.language = i18n::SYSTEM_LANGUAGE.into();
             ui
         }
     }
@@ -311,6 +314,7 @@ impl TextureCraftApp {
             #[cfg(not(target_arch = "wasm32"))]
             prompt_saved: false,
             bindings: keymap::Bindings::default(),
+            settings_bindings: keymap::Bindings::default(),
         };
         app.ui.rename = None;
         app.ui.windows.new_project = false;
@@ -924,10 +928,16 @@ pub fn data_folder(pref: &str) -> std::path::PathBuf {
     std::path::Path::new(&home).join("Documents").join("TextureCraft")
 }
 
+/// The data folder in use (Settings › Folders › Data folder).
+#[cfg(not(target_arch = "wasm32"))]
+pub fn data_dir() -> std::path::PathBuf {
+    DATA_FOLDER.get().cloned().unwrap_or_else(|| data_folder(""))
+}
+
 /// `<sub>` in the data folder in use (Settings › Folders › Data folder).
 #[cfg(not(target_arch = "wasm32"))]
 pub fn user_dir(sub: &str) -> std::path::PathBuf {
-    DATA_FOLDER.get().cloned().unwrap_or_else(|| data_folder("")).join(sub)
+    data_dir().join(sub)
 }
 
 /// Folder holding the user's smart materials.

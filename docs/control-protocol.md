@@ -241,6 +241,13 @@ Settings bounds the reserved-core input to the available logical CPU count and s
 save budget in GiB beside the RAM percentage. The readout refreshes once a second from currently
 available RAM; a save calculates its budget when it starts.
 
+Other preferences set through `ui.set {"prefs": {...}}`: `language` (`""` follows the system
+language), `work_threads` (worker threads for painting, baking and export; 0 uses every logical
+CPU; read at startup), `rotation_speed` (default 2), `zoom_speed` and `wheel_speed` (default 1,
+each from 0.1 to 10) with `zoom_inverse` and `wheel_inverse`, `gpu_raytracing` (false keeps bake
+rays on the CPU) and `libraries` (added library locations as `{"name", "path"}`; the shelf lists
+the saved smart materials and masks in each folder).
+
 ## MCP server
 
 `texturecraft-cli mcp` speaks MCP on stdin/stdout (stdout carries only protocol messages).
@@ -496,7 +503,7 @@ frames the whole mesh. Both return the camera like `camera.get`.
 `camera.view {view}` looks at the mesh from one side (`front` from +Z, `back`, `left` from -X,
 `right`, `top` and `bottom` at the orbit's ±89° pitch limit) and frames it; the projection stays.
 `camera.view.front` … `camera.view.bottom` do the same without params (Viewport menu, no default
-shortcut, bindable in Settings ▸ Keyboard). `camera.perspective` (F5) and `camera.orthographic` (F6)
+shortcut, bindable in Settings ▸ Shortcuts). `camera.perspective` (F5) and `camera.orthographic` (F6)
 change only the projection; position and rotation stay. None of them is an undo step. In the 3D
 view, Alt+Shift+left drag orbits in 90° steps.
 

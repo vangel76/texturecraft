@@ -1,6 +1,6 @@
 //! Floating windows and dockable display, shader, history and log panels
 
-use egui::{Color32, RichText, Ui, vec2};
+use egui::{RichText, Ui, vec2};
 use egui_phosphor::regular as ic;
 use serde_json::json;
 use texturecraft_engine::core::ToneMapping;
@@ -11,17 +11,16 @@ use texturecraft_render::ibl::ENVIRONMENTS;
 use crate::TextureCraftApp;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::file_dialogs::{Bound, FileDialog};
-use crate::i18n::LANGUAGES;
 use crate::i18n::{tr, tr_history, trf};
 use crate::new_project_advanced::COMBO_WIDTH;
 use crate::state::Mode;
-use crate::theme::{Accent, Brightness, Tokens, caption};
+use crate::theme::{Tokens, caption};
 use crate::widgets::{color_swatch, combo, icon_button, primary_button, section, section_with_reset, slider};
 
 pub fn show(app: &mut TextureCraftApp, ctx: &egui::Context) {
     new_project(app, ctx);
     about(app, ctx);
-    settings(app, ctx);
+    crate::settings_window::show(app, ctx);
     #[cfg(not(target_arch = "wasm32"))]
     crate::project_config::show(app, ctx);
     crate::keymap::window(app, ctx);
@@ -560,187 +559,6 @@ fn new_project(app: &mut TextureCraftApp, ctx: &egui::Context) {
     }
     if !open {
         app.ui.windows.new_project = false;
-    }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn settings_resources(ctx: &egui::Context) -> (u32, u64) {
-    let id = egui::Id::unique("settings_resources");
-    let now = ctx.input(|input| input.time);
-    ctx.request_repaint_after(std::time::Duration::from_secs(1));
-
-    // Query the operating system once a second while Settings is open, rather than every frame
-    if let Some((sampled_at, cores, available_ram_bytes)) = ctx.data(|data| data.get_temp::<(f64, u32, u64)>(id))
-        && (0.0..1.0).contains(&(now - sampled_at))
-    {
-        return (cores, available_ram_bytes);
-    }
-
-    let (cores, available_ram_bytes) = texturecraft_engine::formats::available_save_resources();
-    let cores = u32::try_from(cores).unwrap_or(u32::MAX);
-    ctx.data_mut(|data| data.insert_temp(id, (now, cores, available_ram_bytes)));
-    (cores, available_ram_bytes)
-}
-
-fn settings(app: &mut TextureCraftApp, ctx: &egui::Context) {
-    let tk = Tokens::get(ctx);
-    let mut open = app.ui.windows.settings;
-
-    // A language whose script no font draws is listed by its English name and disabled
-    let drawable = LANGUAGES.each_ref().map(|l| crate::fonts::Script::of_language(l.code).is_none_or(|s| app.fonts.covers(s)));
-    #[cfg(not(target_arch = "wasm32"))]
-    let mut pick_data_folder = false;
-    window("settings", tr("Settings"), &mut open).default_width(360.0).show(ctx, |ui| {
-        let p = &mut app.ui.prefs;
-
-        // Every section is a two-column form: labels on the left, controls aligned beside them
-        let form = |id: &str| egui::Grid::new(id).num_columns(2).spacing(vec2(12.0, 8.0)).min_col_width(120.0);
-        ui.label(caption(tr("Interface")));
-        form("settings_interface").show(ui, |ui| {
-            ui.label(tr("Language"));
-            let current = crate::i18n::current();
-            egui::ComboBox::from_id_salt("language").width(180.0).height(320.0).selected_text(current.name).show_ui(ui, |ui| {
-                for (l, ok) in LANGUAGES.iter().zip(drawable).filter(|(l, _)| crate::i18n::available(l.code)) {
-                    let item = egui::Button::selectable(l.code == current.code, if ok { l.name } else { l.english });
-                    if ui.add_enabled(ok, item).on_disabled_hover_text(tr("No font on this system can show this language")).clicked() {
-                        p.language = l.code.to_owned();
-                    }
-                }
-            });
-            ui.end_row();
-            ui.label(tr("Interface scale"));
-            ui.add(egui::Slider::new(&mut p.ui_scale, 0.75..=2.0).fixed_decimals(2));
-            ui.end_row();
-            ui.label(tr("Brightness"));
-            egui::ComboBox::from_id_salt("brightness").width(140.0).selected_text(tr(p.brightness.label())).show_ui(ui, |ui| {
-                for b in Brightness::ALL {
-                    ui.selectable_value(&mut p.brightness, b, tr(b.label()));
-                }
-            });
-            ui.end_row();
-            ui.label(tr("Accent color"));
-            ui.horizontal(|ui| {
-                for a in Accent::ALL {
-                    let (rect, resp) = ui.allocate_exact_size(vec2(20.0, 20.0), egui::Sense::click());
-                    resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::RadioButton, true, p.accent == a, tr(a.label())));
-                    let ring = if p.accent == a {
-                        tk.text_strong
-                    } else if resp.hovered() {
-                        tk.text_dim
-                    } else {
-                        Color32::TRANSPARENT
-                    };
-                    ui.painter().circle(rect.center(), 6.5, a.colors(tk.dark).0, egui::Stroke::NONE);
-                    ui.painter().circle_stroke(rect.center(), 9.0, egui::Stroke::new(1.5, ring));
-                    if resp.on_hover_text(tr(a.label())).clicked() {
-                        p.accent = a;
-                    }
-                }
-            });
-            ui.end_row();
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                ui.label(tr("Title bar"));
-                ui.checkbox(&mut p.system_title_bar, tr("System title bar (applies on restart)"))
-                    .on_hover_text(tr("Use the operating system's window frame and buttons instead of TextureCraft's own title bar"));
-                ui.end_row();
-            }
-        });
-        ui.add_space(8.0);
-        ui.label(caption(tr("Viewport")));
-        form("settings_viewport").show(ui, |ui| {
-            ui.label(tr("Texture resolution"));
-            ui.horizontal(|ui| {
-                for (v, l) in [(0u8, tr("Full")), (1, tr("Half")), (2, tr("Quarter"))] {
-                    ui.selectable_value(&mut p.viewport_texture, v, l);
-                }
-            })
-            .response
-            .on_hover_text(tr(
-                "Size of the textures the viewport shows: lower uses less GPU memory with large texture sets. Painting and export keep full resolution.",
-            ));
-            ui.end_row();
-        });
-        ui.add_space(8.0);
-        ui.label(caption(tr("Project")));
-        #[cfg(not(target_arch = "wasm32"))]
-        let (available_cores, available_ram_bytes) = settings_resources(ctx);
-        form("settings_project").show(ui, |ui| {
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                ui.label(tr("Autosave every"));
-                ui.add(egui::DragValue::new(&mut p.autosave_minutes).range(0..=120).suffix(format!(" {}", tr("min"))));
-                ui.end_row();
-                let label = ui.label(tr("Cores kept for the UI"));
-                ui.add(egui::DragValue::new(&mut p.reserved_cores).range(0..=available_cores)).labelled_by(label.id);
-                ui.end_row();
-            }
-
-            let label = ui.label(tr("Max project size on open"));
-            ui.add(egui::DragValue::new(&mut p.project_open_limit_gib).range(1..=u32::MAX).suffix(" GiB"))
-                .labelled_by(label.id)
-                .on_hover_text(tr("Maximum decompressed project data. Increase this limit to open larger projects."));
-            ui.end_row();
-
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                let label = ui.label(tr("Max RAM while saving"));
-                ui.horizontal(|ui| {
-                    ui.add(egui::DragValue::new(&mut p.save_ram_percent).range(1..=100).suffix(" %")).labelled_by(label.id);
-                    let budget_bytes = texturecraft_engine::formats::save_ram_budget(available_ram_bytes, p.save_ram_percent);
-                    ui.label(format!("≈ {:.2} GiB", budget_bytes as f64 / (1_u64 << 30) as f64));
-                });
-                ui.end_row();
-            }
-        });
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            ui.label(RichText::new(tr("Saving uses the other cores and at most this share of the free RAM. At least one core always works.")).small().color(tk.text_dim));
-            ui.label(
-                RichText::new(trf("0 turns autosave off. Copies go to {folder}", &[("folder", &crate::user_dir("autosave").display())]))
-                    .small()
-                    .color(tk.text_dim),
-            );
-            ui.add_space(8.0);
-            ui.label(caption(tr("Folders")));
-            form("settings_folders").show(ui, |ui| {
-                ui.label(tr("Data folder"));
-                ui.horizontal(|ui| {
-                    let default = crate::data_folder("").display().to_string();
-                    ui.add(egui::TextEdit::singleline(&mut p.data_folder).hint_text(default).desired_width(260.0));
-                    if ui.button("...").clicked() {
-                        pick_data_folder = true;
-                    }
-                });
-                ui.end_row();
-                for (label, dir) in [(tr("Smart materials"), crate::library_dir()), (tr("UI layouts"), crate::user_dir("layouts"))] {
-                    ui.label(label);
-                    ui.label(RichText::new(dir.display().to_string()).small().color(tk.text_dim));
-                    ui.end_row();
-                }
-            });
-            ui.label(
-                RichText::new(tr(
-                    "Autosaves, smart materials, presets, templates and UI layouts go to the data folder. A new folder applies on restart; files already saved stay where they are.",
-                ))
-                .small()
-                .color(tk.text_dim),
-            );
-            ui.add_space(8.0);
-        }
-        ui.label(caption(tr("Keyboard")));
-        if ui.button(tr("Edit keyboard shortcuts...")).on_hover_text(tr("Rebind any menu item, tool or command")).clicked() {
-            app.ui.windows.shortcuts = true;
-        }
-    });
-    app.ui.windows.settings = open;
-    #[cfg(not(target_arch = "wasm32"))]
-    if pick_data_folder {
-        app.ask_file(FileDialog::folder().directory(crate::data_folder(&app.ui.prefs.data_folder)), Bound::App, |app, paths| {
-            if let Some(d) = paths.first() {
-                app.ui.prefs.data_folder = d.display().to_string();
-            }
-        });
     }
 }
 

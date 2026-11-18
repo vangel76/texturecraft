@@ -173,16 +173,22 @@ Everything TextureCraft does today, by area. What's still missing is in [`ROADMA
 ## Interface
 
 - A modern look in **four brightness levels** (dark, medium dark, medium light and light) with
-  **seven accent colors**, set in Settings › Interface.
+  **seven accent colors**, set in Settings › General › Appearance.
 - **Its own title bar** with the app icon, menus and window buttons on Windows (and on Linux
   desktops that leave the frame to the app, such as GNOME), the macOS traffic lights over the same
-  strip, and Settings › Interface › System title bar for the system's frame instead.
+  strip, and Settings › General › Appearance › System title bar for the system's frame instead.
 - **Dockable, tabbed and floating panels**, saved layouts, and panels that reopen where you closed
   them.
 - **No project at launch**: empty views, panels and toolbars until you create or open one (File ›
   New project, Open, Recent projects, Open sample project); File › Close returns to that state.
 - A **data folder** of your choice for autosaves, smart materials, presets, templates and UI
-  layouts, on any drive (Settings › Folders; `Documents/TextureCraft` by default).
+  layouts, on any drive (Settings › General › Folders; `Documents/TextureCraft` by default).
+- A **Settings window** (Edit › Settings) with General, Shortcuts and Libraries pages; changes
+  apply on OK and Cancel drops them. General holds the language (or the system's), the 3D view's
+  rotation, zoom and wheel speeds with inverse directions, GPU or CPU bake rays, resource limits
+  (worker threads, cores kept for the UI, RAM while saving, project size on open) and the autosave
+  interval. Shortcuts rebinds any command. Libraries adds or removes folders whose saved smart
+  materials and masks the shelf lists.
 - A **shortcut editor** with conflict detection, listing every menu item and every command a key can run (commands that need a path, name or similar are left out), and every shortcut shown in its tooltip.
 - A **History** panel: click any step to go back to it, or forward again to an undone one.
 - **10 languages:** English, French, German, Spanish, Portuguese, Italian, Japanese, Chinese,

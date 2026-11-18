@@ -685,10 +685,17 @@ fn snapped_orbit(app: &mut TextureCraftApp, delta: egui::Vec2) {
     let limit = 89f32.to_radians();
     let camera = &mut app.session.camera;
     let (yaw, pitch) = app.orbit_snap.get_or_insert((camera.yaw, camera.pitch));
-    *yaw -= delta.x * ORBIT_RADIANS_PER_POINT;
-    *pitch = (*pitch + delta.y * ORBIT_RADIANS_PER_POINT).clamp(-step, step);
+    let radians_per_point = ORBIT_RADIANS_PER_POINT * app.ui.prefs.orbit_scale();
+    *yaw -= delta.x * radians_per_point;
+    *pitch = (*pitch + delta.y * radians_per_point).clamp(-step, step);
     camera.yaw = (*yaw / step).round() * step;
     camera.pitch = ((*pitch / step).round() * step).clamp(-limit, limit);
+}
+
+/// Orbit the 3D view by a drag of `delta` points at the Settings rotation speed.
+pub(crate) fn orbit(app: &mut TextureCraftApp, delta: egui::Vec2) {
+    let radians_per_point = ORBIT_RADIANS_PER_POINT * app.ui.prefs.orbit_scale();
+    app.session.camera.orbit(delta.x * radians_per_point, delta.y * radians_per_point);
 }
 
 fn view_3d(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, sync: &mut PendingSync) {
@@ -719,17 +726,17 @@ fn view_3d(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, sync: &mut Pendin
         if shift {
             snapped_orbit(app, delta);
         } else {
-            app.session.camera.orbit(delta.x * ORBIT_RADIANS_PER_POINT, delta.y * ORBIT_RADIANS_PER_POINT);
+            orbit(app, delta);
         }
     } else if response.dragged_by(PointerButton::Secondary) {
         app.camera_glide = None;
         if alt {
-            app.session.camera.zoom(-delta.y * DRAG_ZOOM_PER_POINT);
+            app.session.camera.zoom(-delta.y * DRAG_ZOOM_PER_POINT * app.ui.prefs.drag_zoom_scale());
         } else if shift {
             let display = &mut app.session.doc.project.display;
             display.env_rotation = (display.env_rotation + delta.x * LIGHT_DEGREES_PER_POINT).rem_euclid(360.0);
         } else {
-            app.session.camera.orbit(delta.x * ORBIT_RADIANS_PER_POINT, delta.y * ORBIT_RADIANS_PER_POINT);
+            orbit(app, delta);
         }
     }
 
@@ -753,7 +760,7 @@ fn view_3d(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, sync: &mut Pendin
                 scale_brush_by_wheel(app, scroll);
             } else {
                 app.camera_glide = None;
-                app.session.camera.zoom(scroll * WHEEL_ZOOM_PER_POINT);
+                app.session.camera.zoom(scroll * WHEEL_ZOOM_PER_POINT * app.ui.prefs.wheel_zoom_scale());
             }
         }
     }
@@ -770,7 +777,7 @@ fn view_3d(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, sync: &mut Pendin
         if gesture.num_touches >= 3 {
             app.session.camera.pan(moved.x / size.y, moved.y / size.y);
         } else {
-            app.session.camera.orbit(moved.x * ORBIT_RADIANS_PER_POINT, moved.y * ORBIT_RADIANS_PER_POINT);
+            orbit(app, moved);
         }
         if gesture.zoom_delta.is_finite() && gesture.zoom_delta > 0.0 {
             app.session.camera.zoom(gesture.zoom_delta.ln());
