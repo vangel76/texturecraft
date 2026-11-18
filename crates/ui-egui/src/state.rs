@@ -288,6 +288,9 @@ pub struct UiState {
     pub blend_clipboard: Option<Vec<(Channel, ChannelBlend)>>,
     pub mode: Mode,
     pub layout: ViewLayout,
+    /// The split layout shows the 2D view on the left and the 3D view on the right
+    #[serde(default)]
+    pub swap_views: bool,
     /// The 3D view's share of the viewport width in the split layout
     #[serde(default = "default_split_ratio")]
     pub split_ratio: f32,
@@ -435,6 +438,7 @@ impl Default for UiState {
         UiState {
             mode: Mode::Painting,
             layout: ViewLayout::Split,
+            swap_views: false,
             split_ratio: default_split_ratio(),
             dock: Dock::default(),
             rail_panel: None,

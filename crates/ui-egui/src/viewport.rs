@@ -120,13 +120,14 @@ pub fn central(app: &mut TextureCraftApp, ui: &mut Ui) {
             let divider_x = split_divider_x(app, ui, full);
             let left = Rect::from_min_max(full.min, pos2(divider_x - SPLIT_LINE_HALF_WIDTH, full.max.y));
             let right = Rect::from_min_max(pos2(divider_x + SPLIT_LINE_HALF_WIDTH, full.min.y), full.max);
+            let (rect_3d, rect_2d) = if app.ui.swap_views { (right, left) } else { (left, right) };
 
             // Each view draws only on its side, so overlays such as the texture set name stay out of a narrow neighbour
             let clip = ui.clip_rect();
-            ui.set_clip_rect(left.intersect(clip));
-            view_3d(app, ui, left, &mut sync);
-            ui.set_clip_rect(right.intersect(clip));
-            view_2d(app, ui, right, &mut sync);
+            ui.set_clip_rect(rect_3d.intersect(clip));
+            view_3d(app, ui, rect_3d, &mut sync);
+            ui.set_clip_rect(rect_2d.intersect(clip));
+            view_2d(app, ui, rect_2d, &mut sync);
             ui.set_clip_rect(clip);
             split_divider_grab(ui, full, divider_x);
             let line = Stroke::new(SPLIT_LINE_HALF_WIDTH * 2.0, tokens.chrome);
@@ -165,10 +166,9 @@ fn empty_views(app: &mut TextureCraftApp, ui: &mut Ui) {
         ViewLayout::Only2D => vec![(full, "v2d")],
         ViewLayout::Split => {
             let middle = (full.left() + full.width() * 0.5).round();
-            vec![
-                (Rect::from_min_max(full.min, pos2(middle - SPLIT_LINE_HALF_WIDTH, full.max.y)), "v3d"),
-                (Rect::from_min_max(pos2(middle + SPLIT_LINE_HALF_WIDTH, full.min.y), full.max), "v2d"),
-            ]
+            let left = Rect::from_min_max(full.min, pos2(middle - SPLIT_LINE_HALF_WIDTH, full.max.y));
+            let right = Rect::from_min_max(pos2(middle + SPLIT_LINE_HALF_WIDTH, full.min.y), full.max);
+            if app.ui.swap_views { vec![(left, "v2d"), (right, "v3d")] } else { vec![(left, "v3d"), (right, "v2d")] }
         }
     };
 
@@ -203,8 +203,12 @@ fn clamp_split_ratio(ratio: f32, width: f32) -> f32 {
 fn split_divider_x(app: &mut TextureCraftApp, ui: &Ui, full: Rect) -> f32 {
     // The 2D view's left edge, beside the line, sits on a whole pixel
     let pixels_per_point = ui.ctx().pixels_per_point();
+    // The ratio is the 3D view's share, so a swap moves the divider to the other side of the width
+    let swapped = app.ui.swap_views;
     let divider_x = |ratio: f32| {
-        let unsnapped = full.left() + full.width() * clamp_split_ratio(ratio, full.width());
+        let left_share = clamp_split_ratio(ratio, full.width());
+        let left_share = if swapped { 1.0 - left_share } else { left_share };
+        let unsnapped = full.left() + full.width() * left_share;
         (unsnapped + SPLIT_LINE_HALF_WIDTH).round_to_pixels(pixels_per_point) - SPLIT_LINE_HALF_WIDTH
     };
     let old_x = divider_x(app.ui.split_ratio);
@@ -218,7 +222,8 @@ fn split_divider_x(app: &mut TextureCraftApp, ui: &Ui, full: Rect) -> f32 {
         // `max` and `min` rather than `clamp`, so a NaN bound from a corrupt saved zoom can't panic
         let (min_x, max_x) = divider_range_keeping_uv_size(&app.ui, full, old_x, pixels_per_point);
         let target_x = pointer.x.max(min_x).min(max_x);
-        app.ui.split_ratio = clamp_split_ratio((target_x - full.left()) / full.width(), full.width());
+        let left_share = (target_x - full.left()) / full.width();
+        app.ui.split_ratio = clamp_split_ratio(if swapped { 1.0 - left_share } else { left_share }, full.width());
         let new_x = divider_x(app.ui.split_ratio);
         keep_uv_view_on_screen(&mut app.ui, full, old_x, new_x);
     }
@@ -269,8 +274,9 @@ const STENCIL_OUTLINE_DASH: f32 = 5.0;
 const STENCIL_OUTLINE_GAP: f32 = 4.0;
 
 /// The 2D view's width when the split divider is at `divider_x`
-fn uv_view_width(full: Rect, divider_x: f32) -> f32 {
-    (full.right() - divider_x - SPLIT_LINE_HALF_WIDTH).max(1.0)
+fn uv_view_width(full: Rect, divider_x: f32, swapped: bool) -> f32 {
+    let width = if swapped { divider_x - full.left() } else { full.right() - divider_x };
+    (width - SPLIT_LINE_HALF_WIDTH).max(1.0)
 }
 
 /// The share of the 2D view's height that a zoom of 1 fills at `width`: the view fits the texture to its narrower side
@@ -281,19 +287,24 @@ fn uv_view_fit(full: Rect, width: f32) -> f32 {
 /// The divider positions where the 2D zoom that keeps the texture's screen size stays inside the 2D zoom range
 fn divider_range_keeping_uv_size(ui_state: &crate::state::UiState, full: Rect, old_x: f32, pixels_per_point: f32) -> (f32, f32) {
     // The zoom times the fit is the texture's screen size, which a divider drag keeps
-    let screen_zoom = ui_state.uv_zoom * uv_view_fit(full, uv_view_width(full, old_x));
+    let screen_zoom = ui_state.uv_zoom * uv_view_fit(full, uv_view_width(full, old_x, ui_state.swap_views));
 
     // Whole pixels, rounded inward, so snapping the divider to a pixel can't step past the range
     let narrowest_view = (full.height() * screen_zoom / UV_VIEW_MAX_ZOOM * pixels_per_point).ceil() / pixels_per_point;
     let widest_view = (full.height() * screen_zoom / UV_VIEW_MIN_ZOOM * pixels_per_point).floor() / pixels_per_point;
 
+    if ui_state.swap_views {
+        // The 2D view is on the left: the divider moves right to widen it
+        let edge = full.left() + SPLIT_LINE_HALF_WIDTH;
+        return (edge + narrowest_view, edge + widest_view);
+    }
     let edge = full.right() - SPLIT_LINE_HALF_WIDTH;
     (edge - widest_view, edge - narrowest_view)
 }
 
-/// Keeps the 2D view's texture at the same size and offset from the view's centre when the divider moves its left edge from `old_x` to `new_x`
+/// Keeps the 2D view's texture at the same size and offset from the view's centre when the divider moves its edge from `old_x` to `new_x`
 fn keep_uv_view_on_screen(ui_state: &mut crate::state::UiState, full: Rect, old_x: f32, new_x: f32) {
-    let (old_width, new_width) = (uv_view_width(full, old_x), uv_view_width(full, new_x));
+    let (old_width, new_width) = (uv_view_width(full, old_x, ui_state.swap_views), uv_view_width(full, new_x, ui_state.swap_views));
     ui_state.uv_zoom *= uv_view_fit(full, old_width) / uv_view_fit(full, new_width);
 
     // The horizontal pan is in half view widths

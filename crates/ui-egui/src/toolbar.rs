@@ -103,7 +103,7 @@ fn view_buttons(app: &mut TextureCraftApp, ui: &mut egui::Ui) {
     layout_dropdown(app, ui);
 }
 
-/// The 3D/2D, 3D-only and 2D-only layouts, showing the current one's icon
+/// The 3D/2D, 3D-only and 2D-only layouts and the swap, showing the current one's icon
 fn layout_dropdown(app: &mut TextureCraftApp, ui: &mut egui::Ui) {
     const LAYOUTS: [(ViewLayout, &str, &str, &str); 3] = [
         (ViewLayout::Split, ic::SQUARE_SPLIT_HORIZONTAL, "3D/2D views", "ui.layout.split"),
@@ -119,6 +119,9 @@ fn layout_dropdown(app: &mut TextureCraftApp, ui: &mut egui::Ui) {
             if dropdown_row(ui, icon, tr(label), shortcut_of(&app.ui.keymap, command), app.ui.layout == layout) {
                 chosen = Some(command);
             }
+        }
+        if dropdown_row(ui, ic::ARROWS_LEFT_RIGHT, tr("Swap 3D/2D"), shortcut_of(&app.ui.keymap, "ui.layout.swap"), false) {
+            chosen = Some("ui.layout.swap");
         }
     });
 

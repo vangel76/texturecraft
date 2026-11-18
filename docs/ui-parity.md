@@ -77,7 +77,7 @@ list, not a feature-completion denominator.
 | F02 Paint in 3D | UI | Pass | A mouse drag produced a visible stroke in 3D and its UV representation; inspection showed a Paint stroke undo step and painted tiles |
 | F03 Paint in 2D | UI | Pass | A separate UV-view drag increased painted tiles from 7 to 21 per active channel and changed the visible image |
 | F04 Undo and redo | UI | Pass | Ctrl+Z restored 7 tiles and history depth 2; Ctrl+Y restored 21 tiles and depth 3 |
-| F05 View switching | UI | Pass | F2 selected Only3D, F3 Only2D and F1 Split; the screenshots changed accordingly |
+| F05 View switching | UI | Pass | F2 selected Only3D, F3 Only2D and F1 Split; the screenshots changed accordingly. F4 (Swap 3D/2D) puts 2D on the left and 3D on the right |
 | F06 Brush gesture | UI | Pass | Ctrl+right-drag changed size from 8 to about 12.94 and hardness from 50 to about 38. This also demonstrates that diagonal movement changes both parameters; pen precision was not tested |
 | F07 Shelf search and material application | UI | Pass | Searching for car and dragging Car Paint onto the mesh added a red fill layer and an Add Car Paint history step |
 | F08 Fill layer and black mask | UI | Pass | Layer toolbar added a fill; the layer-name context menu added a black mask and selected the mask target |

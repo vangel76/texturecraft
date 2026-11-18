@@ -108,6 +108,7 @@ pub const CATALOG: &[Item] = &[
     it("Viewport", "3D/2D views", "ui.layout.split", Some("F1")),
     it("Viewport", "3D view only", "ui.layout.3d", Some("F2")),
     it("Viewport", "2D view only", "ui.layout.2d", Some("F3")),
+    it("Viewport", "Swap 3D/2D", "ui.layout.swap", Some("F4")),
     sep("Viewport"),
     it("Viewport", "Navigation buttons", "ui.navButtons", None),
     sep("Viewport"),
@@ -218,6 +219,7 @@ pub fn invoke(app: &mut TextureCraftApp, ctx: &egui::Context, id: &str) {
         "ui.layout.split" => app.ui.layout = ViewLayout::Split,
         "ui.layout.3d" => app.ui.layout = ViewLayout::Only3D,
         "ui.layout.2d" => app.ui.layout = ViewLayout::Only2D,
+        "ui.layout.swap" => app.ui.swap_views = !app.ui.swap_views,
         "ui.help.shortcuts" => app.ui.windows.shortcuts = true,
         "ui.about" => app.ui.windows.about = true,
         #[cfg(not(target_arch = "wasm32"))]

@@ -172,6 +172,7 @@ Everything TextureCraft does today, by area. What's still missing is in [`ROADMA
 
 ## Interface
 
+- **Swap 3D/2D** (F4, Viewport menu and the layout dropdown, rebindable) puts the 2D view on the left and the 3D view on the right in the split layout. Painting, the divider and the views' headers work on both sides, and the choice is kept with the UI state.
 - A modern look in **four brightness levels** (dark, medium dark, medium light and light) with
   **seven accent colors**, set in Settings › Interface.
 - **Its own title bar** with the app icon, menus and window buttons on Windows (and on Linux
