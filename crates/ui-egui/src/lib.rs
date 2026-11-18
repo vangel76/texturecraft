@@ -345,7 +345,9 @@ impl TextureCraftApp {
         self.ui.prefs.apply_resource_limits();
 
         // Going to a saved camera or a fixed view glides there; the control channel and CLI jump straight away
-        let glides = id.starts_with("camera.select") || id.starts_with("camera.bookmark") || id.starts_with("camera.view");
+        let glides = ["camera.select", "camera.bookmark", "camera.view", "camera.next", "camera.previous", "camera.snapRotate"]
+            .iter()
+            .any(|prefix| id.starts_with(prefix));
         let before = self.session.camera;
         let glide_from = glides.then_some(before);
         match texturecraft_engine::execute(&mut self.session, id, &params) {
@@ -733,8 +735,8 @@ impl TextureCraftApp {
 /// Whether command `id` puts the camera at a place it names (a view, a saved camera, explicit values or
 /// framing), so a glide toward an earlier destination must not go on even when the camera is already there
 fn sets_camera(id: &str) -> bool {
-    matches!(id, "camera.set" | "camera.orbit" | "camera.select")
-        || ["camera.view.", "camera.bookmark", "viewport.frame"].iter().any(|prefix| id.starts_with(prefix))
+    matches!(id, "camera.set" | "camera.orbit" | "camera.select" | "camera.next" | "camera.previous")
+        || ["camera.view.", "camera.bookmark", "camera.snapRotate", "camera.rotation", "viewport.frame"].iter().any(|prefix| id.starts_with(prefix))
 }
 
 /// A smooth move of the viewport camera (see [`TextureCraftApp::run`]).
@@ -757,6 +759,7 @@ impl TextureCraftApp {
         let mut c = b;
         c.target = a.target.lerp(b.target, e);
         c.yaw = mix(a.yaw, b.yaw);
+        c.orient = a.orient.slerp(b.orient, e);
         c.pitch = mix(a.pitch, b.pitch);
         c.distance = mix(a.distance, b.distance);
         c.fov = mix(a.fov, b.fov);

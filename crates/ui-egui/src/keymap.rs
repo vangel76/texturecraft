@@ -406,6 +406,7 @@ pub fn fixed_gestures() -> Vec<(String, String)> {
     let keyed = |template: &str| trf(template, &[("key", &stencil)]);
     vec![
         (tr("Alt + LMB drag").into(), tr("Orbit").into()),
+        (tr("Alt + Shift + LMB drag").into(), tr("Camera snap rotate").into()),
         (tr("RMB drag").into(), tr("Orbit (3D view)").into()),
         (tr("MMB drag / Alt + MMB").into(), tr("Pan").into()),
         (tr("Wheel / Alt + RMB drag").into(), tr("Zoom").into()),

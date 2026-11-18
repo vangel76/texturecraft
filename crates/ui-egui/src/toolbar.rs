@@ -76,8 +76,8 @@ pub fn paint_bar(app: &mut TextureCraftApp, ui: &mut egui::Ui) {
 
 /// Width of `view_buttons`, so the bar knows when to move them into the scrolling strip
 fn view_buttons_width(button_size: f32, spacing: f32) -> f32 {
-    // Two icons, two dropdowns, one separator and the four gaps between them
-    2.0 * button_size + 2.0 * icon_dropdown_button_width(button_size) + BAR_SEPARATOR_WIDTH + 4.0 * spacing
+    // Two icons, three dropdowns, one separator and the five gaps between them
+    2.0 * button_size + 3.0 * icon_dropdown_button_width(button_size) + BAR_SEPARATOR_WIDTH + 5.0 * spacing
 }
 
 /// View buttons in a right-to-left layout: the layout, then the camera type, then the screenshot and UV checker
@@ -99,7 +99,10 @@ fn view_buttons(app: &mut TextureCraftApp, ui: &mut egui::Ui) {
         }
     });
     ui.add(egui::Separator::default().spacing(BAR_SEPARATOR_WIDTH));
-    ui.add_enabled_ui(project_open, |ui| projection_dropdown(app, ui));
+    ui.add_enabled_ui(project_open, |ui| {
+        rotation_dropdown(app, ui);
+        projection_dropdown(app, ui);
+    });
     layout_dropdown(app, ui);
 }
 
@@ -143,6 +146,28 @@ fn projection_dropdown(app: &mut TextureCraftApp, ui: &mut egui::Ui) {
 
     if let Some(choice) = chosen.filter(|choice| *choice != ortho) {
         app.run("camera.set", json!({"ortho": choice}));
+    }
+}
+
+/// Constrained (horizon stays level) or free (trackball) camera rotation
+fn rotation_dropdown(app: &mut TextureCraftApp, ui: &mut egui::Ui) {
+    let modes = [
+        (false, ic::ARROWS_HORIZONTAL, "Constrained rotation", "camera.rotation.constrained"),
+        (true, ic::ARROWS_CLOCKWISE, "Free rotation", "camera.rotation.free"),
+    ];
+    let free = app.session.camera.free;
+    let (_, icon, label, _) = modes.iter().find(|(choice, ..)| *choice == free).unwrap_or(&modes[0]);
+    let mut chosen = None;
+    icon_dropdown(ui, "view_rotation", icon, tr(label), |ui| {
+        for (choice, icon, label, command) in modes {
+            if dropdown_row(ui, icon, tr(label), shortcut_of(&app.ui.keymap, command), free == choice) {
+                chosen = Some(command);
+            }
+        }
+    });
+
+    if let Some(command) = chosen {
+        crate::menus::invoke(app, &ui.ctx().clone(), command);
     }
 }
 

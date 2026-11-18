@@ -160,6 +160,7 @@ pub fn shade(s: &Session) -> Shade {
         ViewMode::Channel(c) => (1, c.index() as u32),
         ViewMode::MeshMap(_) | ViewMode::Mask(_) => (2, 0),
         ViewMode::UvChecker => (3, 0),
+        ViewMode::NormalHeightMesh => (4, 0),
     };
     Shade {
         height_strength: s.doc.project.texture_sets.get(s.ts()).map(|t| t.atlas_height_strength()).unwrap_or(1.0),

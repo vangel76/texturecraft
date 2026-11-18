@@ -113,6 +113,17 @@ fn exposure_brightens_the_material_but_not_data_views() {
 }
 
 #[test]
+fn the_combined_normal_view_shows_the_shading_normal_unlit() {
+    let Some((mut h, frame)) = setup() else { return };
+    let base = render(&mut h, &frame, "normal_view_material");
+    let combined = shaded(&frame, |s| s.view_mode = 4);
+    let a = render(&mut h, &combined, "normal_height_mesh");
+    let b = render(&mut h, &shaded(&combined, |s| s.exposure_ev = 2.0), "normal_height_mesh_ev2");
+    assert_ne!(a.px, base.px, "the view differs from the lit material");
+    assert_eq!(a.px, b.px, "a data view ignores exposure");
+}
+
+#[test]
 fn post_effects() {
     let Some((mut h, frame)) = setup() else { return };
     let base = render(&mut h, &frame, "post_off");

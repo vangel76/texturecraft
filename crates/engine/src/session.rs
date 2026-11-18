@@ -150,7 +150,13 @@ pub enum ViewMode {
     UvChecker,
     /// One layer's mask, in grayscale (Alt+click a mask).
     Mask(LayerId),
+    /// The surface normal the shading uses, unlit: the mesh normal turned by the Height
+    /// channel's slope and the Normal channel ("Normal+height+mesh").
+    NormalHeightMesh,
 }
+
+/// The view picker's entry for [`ViewMode::NormalHeightMesh`]
+pub const NORMAL_HEIGHT_MESH_LABEL: &str = "Normal+height+mesh";
 
 impl ViewMode {
     pub fn label(&self) -> String {
@@ -160,6 +166,7 @@ impl ViewMode {
             ViewMode::MeshMap(m) => m.id().into(),
             ViewMode::UvChecker => "UV checker".into(),
             ViewMode::Mask(_) => "Layer mask".into(),
+            ViewMode::NormalHeightMesh => NORMAL_HEIGHT_MESH_LABEL.into(),
         }
     }
 }

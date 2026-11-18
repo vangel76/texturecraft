@@ -306,11 +306,12 @@ fn split_divider_grab(ui: &Ui, full: Rect, divider_x: f32) {
     ui.interact(zone, split_divider_id(ui), Sense::drag()).on_hover_and_drag_cursor(egui::CursorIcon::ResizeHorizontal);
 }
 
-/// The shader's view modes (`Shade::view_mode`): the material, one channel, the aux texture (mesh map, mask or quick mask), the UV checker
+/// The shader's view modes (`Shade::view_mode`): the material, one channel, the aux texture (mesh map, mask or quick mask), the UV checker, the combined normal
 const VIEW_MODE_MATERIAL: u32 = 0;
 const VIEW_MODE_CHANNEL: u32 = 1;
 const VIEW_MODE_AUX_TEXTURE: u32 = 2;
 const VIEW_MODE_UV_CHECKER: u32 = 3;
+const VIEW_MODE_NORMAL_HEIGHT_MESH: u32 = 4;
 
 fn shade(app: &TextureCraftApp) -> Shade {
     let (view_mode, channel) = match app.session.view {
@@ -319,6 +320,7 @@ fn shade(app: &TextureCraftApp) -> Shade {
         ViewMode::Channel(selected_channel) => (VIEW_MODE_CHANNEL, selected_channel.index() as u32),
         ViewMode::MeshMap(_) | ViewMode::Mask(_) => (VIEW_MODE_AUX_TEXTURE, 0),
         ViewMode::UvChecker => (VIEW_MODE_UV_CHECKER, 0),
+        ViewMode::NormalHeightMesh => (VIEW_MODE_NORMAL_HEIGHT_MESH, 0),
     };
     let set_index = app.session.ts();
     let height_strength = app.session.doc.project.texture_sets.get(set_index).map(|texture_set| texture_set.atlas_height_strength()).unwrap_or(1.0);
@@ -550,6 +552,9 @@ fn view_header(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, id: &str) {
                     app.run("viewport.view", json!({"mode": channel.id()}));
                 }
             }
+            if ui.selectable_label(app.session.view == ViewMode::NormalHeightMesh, tr(texturecraft_engine::NORMAL_HEIGHT_MESH_LABEL)).clicked() {
+                app.run("viewport.view", json!({"mode": "normalHeightMesh"}));
+            }
             ui.separator();
             mesh_map_entries(app, ui);
             ui.separator();
@@ -687,8 +692,9 @@ fn snapped_orbit(app: &mut TextureCraftApp, delta: egui::Vec2) {
     let (yaw, pitch) = app.orbit_snap.get_or_insert((camera.yaw, camera.pitch));
     *yaw -= delta.x * ORBIT_RADIANS_PER_POINT;
     *pitch = (*pitch + delta.y * ORBIT_RADIANS_PER_POINT).clamp(-step, step);
-    camera.yaw = (*yaw / step).round() * step;
-    camera.pitch = ((*pitch / step).round() * step).clamp(-limit, limit);
+
+    // A free camera is put level on the step
+    camera.set_angles((*yaw / step).round() * step, ((*pitch / step).round() * step).clamp(-limit, limit));
 }
 
 fn view_3d(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, sync: &mut PendingSync) {

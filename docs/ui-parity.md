@@ -129,3 +129,11 @@ fidelity. The new `.spp` reader is a future goal, not a tested capability.
 
 No implementation fixes were made in this assessment. The build from the earlier pass was
 reused; the full Rust tests, clippy, wasm and other operating-system builds were not rerun.
+
+## Camera and view (2026-11-18)
+
+Closes the camera gaps of [#649](https://github.com/storytold/texturecraft/issues/649):
+constrained / free (trackball) rotation, the "Camera snap rotate" commands next to the
+Alt+Shift+left drag (which already existed), bindable next / previous saved camera (the
+Ctrl+1 ... Ctrl+9 slots stay), and the "Normal+height+mesh" entry of the view picker.
+Free rotation uses the same Alt+left drag (and right drag) as the constrained one.

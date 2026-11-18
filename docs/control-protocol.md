@@ -500,6 +500,22 @@ shortcut, bindable in Settings ▸ Keyboard). `camera.perspective` (F5) and `cam
 change only the projection; position and rotation stay. None of them is an undo step. In the 3D
 view, Alt+Shift+left drag orbits in 90° steps.
 
+`camera.rotation {mode: constrained|free}` (or `camera.rotation.constrained` / `camera.rotation.free`,
+Viewport menu and the rotation dropdown of the top bar) picks the orbit: constrained (the default) keeps
+the horizon level and stops at the poles; free is a trackball that turns the camera about its own axes,
+so the model can be turned over and rolled. `camera.get` shows it as `rotation`; `camera.set` takes
+`rotation` too. Switching keeps the direction of view; going back to constrained drops the roll. Saved
+cameras, fixed views and `camera.set` yaw/pitch put a free camera level. `camera.snapRotate {yaw?, pitch?}`
+(whole 90° steps; the angles first go to the nearest step) is the command behind the Alt+Shift+left drag
+("Camera snap rotate"); `camera.snapRotate.left|right|up|down` are its menu forms. `camera.next` and
+`camera.previous` go to the next or previous saved camera (wrapping; from a view that is no saved
+camera, the first or the last). The commands have no default keys and are bindable in Settings ▸ Keyboard.
+None is an undo step.
+
+`viewport.view {mode: "normalHeightMesh"}` is the combined "Normal+height+mesh" view: the surface normal
+the shading uses (mesh normal, Height channel slope and Normal channel), unlit; the 2D view shows its
+tangent-space form.
+
 ## MaterialCraft materials
 
 A `.mcmat` portable material (MaterialCraft's format, read here by `formats::mcmat`; the manifest is
