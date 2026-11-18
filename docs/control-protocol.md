@@ -18,6 +18,7 @@ effect's input), so an agent can pick its input range from the data. `effect.mov
 index}` reorders an effect within its stack (0 = bottom) and `effect.duplicate {effect}` copies
 one just above itself. `effect.copy {effect?}` and `effect.cut {effect?}` put an effect on the
 layer clipboard, and `effect.paste {layer?, target?}` adds it to another layer's content or mask.
+`layer.pasteInstance {}` pastes a copied layer as an instance (default key Ctrl+Shift+V, rebindable).
 `layer.select {layers: [id], layer?}` selects several layers of one texture set at once (`layer`
 is the active one), and `{layer, range: true}` / `{layer, toggle: true}` do what Shift+click and
 Ctrl+click do in the Layers panel. `layer.select {all: true}` (Ctrl+A with the pointer over the

@@ -103,6 +103,8 @@ built-in `udim_plane`, a uniform fill and a tile-1002 resolution override.
 
 ## Avoid stale missing-feature claims
 
+- **Paste as instance** has the default key Ctrl+Shift+V, shown in the layer menu and the shortcut
+  overview, greyed while no layer is copied, and rebindable.
 - Polygon fill already has triangle, polygon, connected-mesh and UV-island modes, a rectangle
   selection workflow and topology display. F11 exercised the UV rectangle route; a full trim-sheet
   authoring task is still unverified.

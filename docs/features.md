@@ -39,7 +39,8 @@ Everything TextureCraft does today, by area. What's still missing is in [`ROADMA
 
 - **Paint, fill, folder and instance layers** with **32 blend modes per channel** (Normal through
   Normal map detail), per-channel opacity, visibility, color tags, drag-and-drop reordering,
-  duplicate, group, flatten, cut, copy and paste across texture sets, and **geometry masks** that
+  duplicate, group, flatten, cut, copy and paste across texture sets (Ctrl+Shift+V pastes a copied
+  layer as an instance; the key can be rebound), and **geometry masks** that
   show a layer only on the mesh parts you pick (right-click a layer, or click parts with the
   **Geometry mask** tool, 8). **Solo layer** (right-click a layer, or Alt+click its eye) shows
   one layer alone in the 3D and 2D views, optionally without its mask (Alt+Shift+click, or
