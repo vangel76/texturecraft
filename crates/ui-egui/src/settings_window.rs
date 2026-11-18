@@ -420,6 +420,9 @@ fn general(
     });
     row(ui, tr("Local cache budget (in MB)"), |ui, label| {
         let mut budget = 4000_u32;
+        ui.spacing_mut().item_spacing.x = 2.0;
+        not_available(ui.add_enabled(false, egui::Button::new("−").frame(false)));
+        not_available(ui.add_enabled(false, egui::Button::new("+").frame(false)));
         not_available(ui.add_enabled(false, egui::DragValue::new(&mut budget))).labelled_by(label);
     });
     row(ui, tr("Material preview shader"), |ui, _| {

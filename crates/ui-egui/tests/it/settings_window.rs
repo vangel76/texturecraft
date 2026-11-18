@@ -164,6 +164,9 @@ fn a_control_the_app_lacks_is_disabled_and_says_so_on_hover() {
         h.run_steps(6);
         assert!(h.query_by_label(NOT_AVAILABLE).is_some(), "hovering {label} says it is not available yet");
     }
+    for step in ["−", "+"] {
+        assert!(h.query_all_by_label(step).any(|node| node.accesskit_node().is_disabled()), "the cache budget's {step} is disabled");
+    }
     assert!(!h.get_by_label("Enable GPU raytracing").accesskit_node().is_disabled(), "GPU raytracing switches bakes to the CPU");
     for label in ["Rotation speed", "Zoom speed", "Wheel speed"] {
         assert!(h.query_by_label(label).is_some(), "{label} is shown");
