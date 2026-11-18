@@ -17,7 +17,7 @@ Everything TextureCraft does today, by area. What's still missing is in [`ROADMA
   stroke and keep the size. The Brush section's **Brush presets** popover (and the shelf) also keeps
   your own: save the current brush, click to use it, rename, replace or delete it.
 - **Tools:** paint, eraser, **projection** with image stencils (hold S to move, turn and scale the
-  stencil), polygon fill (triangle, UV island or the whole mesh), **path** (Shift+click places a corner point for hard edges) and **lasso fill**, a
+  stencil), polygon fill (triangle, UV island or the whole mesh), **path** (Shift+click places a corner point for hard edges; "Reverse path direction" turns the curve around in one undo step, also for a stored path being edited, and is a bindable command, `path.reverse`) and **lasso fill**, a
   **particle brush**, **smudge**, **clone** (V + click sets the source, marked in the 3D and 2D views;
   an Aligned option keeps or restarts the offset per stroke), material picker, Shift+click straight
   lines (Ctrl+Shift+click snaps them to 15 degree steps), and painting directly in the **2D UV view**.

@@ -352,6 +352,7 @@ pub fn path_controls(app: &mut TextureCraftApp, ui: &mut egui::Ui) {
     let (closed, fill) = (path.closed, path.fill);
     let selected = path.selected.is_some_and(|i| i < path.points.len());
     let has_points = !path.points.is_empty();
+    let can_reverse = path.points.len() >= 2;
     let corner = path.selected.is_some_and(|i| path.is_corner(i));
     if icon_button(ui, ic::POLYGON, tr("Closed path"), closed, button_size).clicked() {
         app.session.set_path_closed(!closed);
@@ -369,6 +370,11 @@ pub fn path_controls(app: &mut TextureCraftApp, ui: &mut egui::Ui) {
 
     if ui.add_enabled_ui(selected, |ui| icon_button(ui, ic::BACKSPACE, tr("Remove point"), false, button_size)).inner.clicked() {
         app.session.remove_selected_path_point();
+    }
+
+    if ui.add_enabled_ui(can_reverse, |ui| icon_button(ui, ic::ARROWS_LEFT_RIGHT, tr("Reverse path direction"), false, button_size)).inner.clicked() {
+        // The command repaints an edited path and is one undo step
+        app.run("path.reverse", json!({}));
     }
 
     if ui.add_enabled_ui(has_points, |ui| icon_button(ui, ic::CHECK, tr("Apply"), false, button_size)).inner.clicked() {
