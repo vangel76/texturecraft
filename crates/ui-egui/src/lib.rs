@@ -316,6 +316,11 @@ impl TextureCraftApp {
             bindings: keymap::Bindings::default(),
             settings_bindings: keymap::Bindings::default(),
         };
+        // The test harness has no window: its file dialogs answer Cancelled, never on the desktop
+        #[cfg(not(target_arch = "wasm32"))]
+        if cc.winit_window().is_none() {
+            app.file_dialogs.without_window();
+        }
         app.ui.rename = None;
         app.ui.windows.new_project = false;
         i18n::set_language(&app.ui.prefs.language);
