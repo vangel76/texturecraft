@@ -114,6 +114,10 @@ built-in `udim_plane`, a uniform fill and a tile-1002 resolution override.
   view), Ctrl+right-drag, Ctrl+left-drag and the fine mode (Ctrl+Shift+right-drag changes size and
   hardness by a tenth). Pen precision in [#545](https://github.com/storytold/texturecraft/issues/545)
   still needs an input-device task test.
+- Hide/ignore excluded geometry is there: the top-bar eye-slash toggle (Alt+H, `viewport.hideExcluded`)
+  hides the parts the selected layer's geometry mask leaves out, and strokes and picking skip them.
+  Engine tests cover picking and painting through the hidden part; `crates/ui-egui/tests/it/hide_excluded.rs`
+  covers the button, the key and the no-project state. The headless tests do not check the drawn pixels.
 - The shelf displayed four columns at the larger size, with type controls and search. Do not
   treat every older shelf-layout request as a currently missing implementation.
 - A missing mask-thumbnail menu does not mean mask effects are unavailable: the layer-name menu

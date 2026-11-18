@@ -48,6 +48,10 @@ impl Session {
     }
 
     pub fn pick(&self, screen: Vec2, viewport: Vec2) -> Option<SurfaceHit> {
+        let excluded = self.excluded_ranges();
+        if !excluded.is_empty() {
+            return self.pick_skipping_excluded(screen, viewport, &excluded);
+        }
         let ctx = PickCtx { mesh: &self.mesh, bvh: &self.bvh, camera: &self.camera, viewport };
         pick(&ctx, screen)
     }
@@ -263,7 +267,14 @@ impl Session {
             return Err(EngineError::Other(msg.into()));
         }
 
-        let depth = (!uv_mode).then(|| self.eye_depth(viewport));
+        let through = if uv_mode { None } else { self.paint_through_geometry() };
+        let depth = match &through {
+            Some(geometry) => {
+                let size = ((viewport.x / 2.0).max(64.0) as u32, (viewport.y / 2.0).max(64.0) as u32);
+                Some(std::sync::Arc::new(EyeDepth::render(&geometry.0, &self.camera, size.0, size.1)))
+            }
+            None => (!uv_mode).then(|| self.eye_depth(viewport)),
+        };
         let stroke = Stroke::new(&self.tool.brush, &self.mesh);
         let mut canvas = StrokeCanvas::new(size.0, size.1);
         if !quick_mask {
@@ -328,6 +339,7 @@ impl Session {
             stroke,
             canvas,
             depth,
+            through,
             uv: uv_mode.then(UvStrokeState::default),
             camera: self.camera,
             viewport,
@@ -497,15 +509,16 @@ impl Session {
         let Some(st) = self.stroke.as_mut() else { return false };
         let Some(cache) = self.caches.get_mut(st.ts) else { return false };
         let material = self.doc.project.texture_sets.get(st.ts).map(|t| t.material).unwrap_or(0);
-        let ctx = PickCtx { mesh: &self.mesh, bvh: &self.bvh, camera: &st.camera, viewport: st.viewport };
+        let (mesh, bvh) = st.through.as_deref().map_or((&*self.mesh, &*self.bvh), |(mesh, bvh)| (mesh, bvh));
+        let ctx = PickCtx { mesh, bvh, camera: &st.camera, viewport: st.viewport };
         let stamps = st.stroke.add(&ctx, screen, pressure);
         let hit = st.stroke.last_hit().is_some();
         if stamps.is_empty() {
             return hit;
         }
         let rctx = RasterCtx {
-            mesh: &self.mesh,
-            bvh: &self.bvh,
+            mesh,
+            bvh,
             gbuf: &cache.gbuf,
             material,
             depth: st.depth.as_deref(),

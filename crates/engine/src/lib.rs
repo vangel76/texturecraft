@@ -49,6 +49,7 @@ mod polygon_fill_drag;
 mod polygon_fill_mirror;
 mod stencil_look;
 // Mesh reimport reads files on native targets only
+pub mod hide_excluded;
 #[cfg(not(target_arch = "wasm32"))]
 mod preserve;
 pub mod preset_cmds;

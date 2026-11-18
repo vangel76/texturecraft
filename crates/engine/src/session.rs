@@ -335,6 +335,8 @@ pub(crate) struct ActiveStroke {
     pub canvas: StrokeCanvas,
     /// Camera visibility for 3D strokes (None for strokes in the 2D view).
     pub depth: Option<Arc<EyeDepth>>,
+    /// The mesh and BVH without the parts the geometry mask excludes, while they are hidden.
+    pub through: Option<Arc<(Mesh, Bvh)>>,
     /// 2D view strokes: where the stroke is between samples.
     pub uv: Option<crate::uv_stroke_state::UvStrokeState>,
     pub camera: OrbitCamera,
@@ -439,6 +441,9 @@ pub struct Session {
     pub images: texturecraft_compose::ImageStore,
     /// Temporary texel mask limiting paint strokes (not saved, not in the history).
     pub quick_mask: crate::quick_mask::QuickMask,
+    /// Hide/ignore excluded geometry: the parts the selected layer's geometry mask leaves out are
+    /// not drawn, and picking and strokes skip them (not saved).
+    pub hide_excluded: bool,
     /// A path sublayer is being repainted from its paths (the only way to paint into one).
     pub(crate) painting_paths: bool,
     /// Pixels of the paths below the one being edited, so live edits skip repainting them.
@@ -511,6 +516,7 @@ impl Session {
             clipboard: None,
             images: Default::default(),
             quick_mask: Default::default(),
+            hide_excluded: false,
             painting_paths: false,
             path_cache: None,
             path_draft: None,

@@ -85,6 +85,7 @@ impl Gpu {
     /// Render `s` with `kind` at `size` through `camera`; RGBA8 (sRGB) pixels.
     pub fn render(&mut self, s: &mut Session, kind: ViewKind, size: [u32; 2], camera: texturecraft_engine::geom::OrbitCamera) -> Option<(u32, u32, Vec<u8>)> {
         self.sync(s);
+        let hidden_parts = if matches!(kind, ViewKind::Scene) { s.excluded_parts() } else { Vec::new() };
         let frame = Frame {
             view_id: 1,
             size,
@@ -92,6 +93,7 @@ impl Gpu {
             camera,
             shade: shade(s),
             visible: s.doc.project.texture_sets.iter().map(|t| t.visible).collect(),
+            hidden_parts,
             overlay: Vec::new(),
         };
         self.h.render(&frame)

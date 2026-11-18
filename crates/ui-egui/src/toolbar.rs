@@ -76,8 +76,8 @@ pub fn paint_bar(app: &mut TextureCraftApp, ui: &mut egui::Ui) {
 
 /// Width of `view_buttons`, so the bar knows when to move them into the scrolling strip
 fn view_buttons_width(button_size: f32, spacing: f32) -> f32 {
-    // Two icons, two dropdowns, one separator and the four gaps between them
-    2.0 * button_size + 2.0 * icon_dropdown_button_width(button_size) + BAR_SEPARATOR_WIDTH + 4.0 * spacing
+    // Three icons, two dropdowns, one separator and the five gaps between them
+    3.0 * button_size + 2.0 * icon_dropdown_button_width(button_size) + BAR_SEPARATOR_WIDTH + 5.0 * spacing
 }
 
 /// View buttons in a right-to-left layout: the layout, then the camera type, then the screenshot and UV checker
@@ -97,10 +97,21 @@ fn view_buttons(app: &mut TextureCraftApp, ui: &mut egui::Ui) {
         if icon_button(ui, ic::CAMERA, tr("Screenshot of the viewport"), false, button_size).clicked() {
             app.toast(tr("Use the control channel or `texturecraft-cli render` for screenshots"), false);
         }
+        hide_excluded_button(app, ui, button_size);
     });
     ui.add(egui::Separator::default().spacing(BAR_SEPARATOR_WIDTH));
     ui.add_enabled_ui(project_open, |ui| projection_dropdown(app, ui));
     layout_dropdown(app, ui);
+}
+
+/// Hide the parts the selected layer's geometry mask excludes and paint through them (Alt+H)
+fn hide_excluded_button(app: &mut TextureCraftApp, ui: &mut egui::Ui, button_size: f32) {
+    let on = app.session.hide_excluded;
+    let tooltip =
+        tip(&app.ui.keymap, tr("Hides geometry excluded in the geometry mask. While enabled, brush strokes paint through geometry."), "viewport.hideExcluded");
+    if icon_button(ui, ic::EYE_SLASH, &tooltip, on, button_size).clicked() {
+        app.run("viewport.hideExcluded", json!({}));
+    }
 }
 
 /// The 3D/2D, 3D-only and 2D-only layouts, showing the current one's icon

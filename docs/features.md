@@ -31,6 +31,8 @@ Everything TextureCraft does today, by area. What's still missing is in [`ROADMA
   tool's base color (Properties › Alpha › Text).
 - **Quick mask** (Y): paint a temporary mask (U to edit, Ctrl+Shift+I to invert) that protects
   everything outside it while you paint.
+- **Hide excluded geometry** (Alt+H, top bar): hides the mesh parts the selected layer's geometry mask
+  leaves out; strokes and picking skip them, so the brush paints the parts behind.
 - **Every channel at once:** base color, metallic, roughness, height, normal, emissive, opacity,
   ambient occlusion and specular level, plus clear coat, sheen, anisotropy, subsurface scattering
   and transmission, each toggled per stroke in the brush's material properties.

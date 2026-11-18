@@ -16,6 +16,7 @@ mod filters;
 mod frame_selection;
 mod generator_inputs;
 mod gradient_map;
+mod hide_excluded;
 mod high_poly_missed;
 mod instances;
 mod layer_multi_select;

@@ -981,6 +981,7 @@ fn view_3d(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, sync: &mut Pendin
         camera: app.session.camera,
         shade: Shade { highlight: drop_highlight(app, ui, &response), ..shade(app) },
         visible: app.session.doc.project.texture_sets.iter().map(|texture_set| texture_set.visible).collect(),
+        hidden_parts: app.session.excluded_parts(),
         overlay: crate::symmetry::scene_overlay(app, ui, rect),
     };
     add_callback(app, ui, rect, frame, sync);
@@ -2253,6 +2254,7 @@ fn view_2d(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, sync: &mut Pendin
         camera: app.session.camera,
         shade: shade(app),
         visible: app.session.doc.project.texture_sets.iter().map(|texture_set| texture_set.visible).collect(),
+        hidden_parts: Vec::new(),
         overlay: Vec::new(),
     };
     add_callback(app, ui, rect, frame, sync);

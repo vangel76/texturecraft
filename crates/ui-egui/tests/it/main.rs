@@ -27,6 +27,7 @@ mod filter_picker;
 mod frame_selection;
 mod generator_panel;
 mod gradient_map_menu;
+mod hide_excluded;
 mod history_panel;
 mod inactive_set_hint;
 mod layer_blending_options;

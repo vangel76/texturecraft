@@ -491,6 +491,15 @@ Alt+drag orbit turn around the object being painted even with a floor plane or o
 the mesh. `viewport.frameSelection` (Shift+F) is the same as `target: "selection"`; a set with no triangles
 frames the whole mesh. Both return the camera like `camera.get`.
 
+## Hide excluded geometry
+
+`viewport.hideExcluded {enabled?: bool}` (Alt+H; toggles when `enabled` is omitted) hides the mesh parts the
+selected layer's geometry mask leaves out (`layer.set {geometryMask}`), so the 3D view and the key-light shadow
+no longer draw them, and picking (`tool.click`, strokes, the brush cursor) skips them, so a stroke paints the
+parts behind. The result is `{enabled, excludedParts}`. It is a view setting: not saved, not in the undo
+history, and a layer with no geometry mask hides nothing. The same toggle is the eye-slash button in the top
+bar, enabled with a project open.
+
 ## Camera views and projection
 
 `camera.view {view}` looks at the mesh from one side (`front` from +Z, `back`, `left` from -X,
