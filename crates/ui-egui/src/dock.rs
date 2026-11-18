@@ -1981,6 +1981,8 @@ fn stencil_section(app: &mut TextureCraftApp, ui: &mut Ui) {
     if let Some(name) = image_drop(ui, &row_response) {
         app.run("tool.stencil", json!({"image": name}));
     }
+    ui.checkbox(&mut app.session.tool.hide_stencil_while_painting, tr("Hide stencil when painting"))
+        .on_hover_text(tr("Hide the stencil image and its outline while a stroke is being painted"));
     if names.is_empty() {
         ui.label(RichText::new(tr("Import an image (File > Import resources) to project it onto the mesh.")).color(tk.text_dim));
         return;

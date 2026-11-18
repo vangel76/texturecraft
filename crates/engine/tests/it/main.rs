@@ -25,6 +25,7 @@ mod materialcraft_link;
 mod materialx;
 mod materialx_import;
 mod meshmap_import;
+mod paint_keys;
 mod painter_gaps;
 mod path_perf;
 mod path_tool;

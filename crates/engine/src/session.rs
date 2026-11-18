@@ -256,6 +256,27 @@ pub struct ToolState {
     /// The Path tool's curve being edited.
     #[serde(default)]
     pub path: crate::path_tool::PathState,
+    /// The lazy mouse distance the toggle (`tool.lazyMouse`) switches back to, in screen pixels
+    #[serde(default = "default_lazy_distance")]
+    pub lazy_distance: f32,
+    /// A new stroke continues from where the previous one ended (`tool.resumeStroke`)
+    #[serde(default)]
+    pub resume_stroke: bool,
+    /// The Projection tool paints without its stencil image (`tool.ignoreStencil`)
+    #[serde(default)]
+    pub ignore_stencil: bool,
+    /// The stencil image and outline are not drawn in the 3D view while a stroke is being painted
+    #[serde(default = "default_hide_stencil")]
+    pub hide_stencil_while_painting: bool,
+}
+
+/// The lazy mouse distance the toggle starts with when none was set yet (screen pixels)
+pub(crate) fn default_lazy_distance() -> f32 {
+    20.0
+}
+
+pub(crate) fn default_hide_stencil() -> bool {
+    true
 }
 
 pub(crate) fn default_smudge_strength() -> f32 {
@@ -309,6 +330,10 @@ impl Default for ToolState {
             clone_aligned: true,
             clone_from: CloneFrom::Composite,
             path: Default::default(),
+            lazy_distance: default_lazy_distance(),
+            resume_stroke: false,
+            ignore_stencil: false,
+            hide_stencil_while_painting: default_hide_stencil(),
         };
         t.values.insert(Channel::BaseColor, [0.8, 0.8, 0.8]);
         t.values.insert(Channel::Roughness, [0.3; 3]);

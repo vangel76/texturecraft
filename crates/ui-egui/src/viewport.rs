@@ -940,7 +940,7 @@ fn view_3d(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, sync: &mut Pendin
         let pressure = pen_pressure(ui);
         if response.drag_started_by(PointerButton::Primary) || response.clicked_by(PointerButton::Primary) {
             // Shift+click paints a straight line from where the last stroke ended on the model; Ctrl+Shift snaps its angle
-            let line_from = if shift { line_anchor_screen(app, rect) } else { None };
+            let line_from = if shift || app.session.tool.resume_stroke { line_anchor_screen(app, rect) } else { None };
             if let Some(pointer) = response.interact_pointer_pos() {
                 let pointer = snapped_end(line_from.filter(|_| snap).map(|from| pos2(rect.left() + from.x, rect.top() + from.y)), pointer);
                 let start = line_from.unwrap_or(local(pointer));
@@ -1013,7 +1013,7 @@ fn view_3d(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, sync: &mut Pendin
         }
 
         // Shift: preview the straight line Shift+click paints from the last stroke (snapped with Ctrl)
-        if shift
+        if (shift || app.session.tool.resume_stroke)
             && !path_tool
             && let Some(from) = line_anchor_screen(app, rect)
         {
@@ -1297,6 +1297,9 @@ fn decal_overlay(app: &mut TextureCraftApp, ui: &Ui, rect: Rect) {
 /// Draw the projection stencil in Paint Mode
 fn stencil_overlay(app: &mut TextureCraftApp, ui: &Ui, rect: Rect) {
     if !tool_acts(app) || app.session.tool.tool != Tool::Projection {
+        return;
+    }
+    if app.session.tool.hide_stencil_while_painting && app.session.stroke_active() {
         return;
     }
     let Some(stencil) = app.session.tool.stencil.clone() else { return };
@@ -2239,7 +2242,7 @@ fn view_2d(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, sync: &mut Pendin
             |session, corner, opposite| session.drag_polygon_fill_box_uv(to_uv(corner), to_uv(opposite)),
         );
     } else if painting {
-        paint_2d_input(app, ui, &response, (shift, snap), &to_uv, &to_screen);
+        paint_2d_input(app, ui, &response, (shift || app.session.tool.resume_stroke, snap), &to_uv, &to_screen);
     }
     if response.double_clicked() && !(painting && path_tool) {
         app.ui.uv_zoom = 1.0;
@@ -2309,7 +2312,7 @@ fn view_2d(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, sync: &mut Pendin
 
     // Shift: preview the straight line Shift+click paints from the last stroke (snapped with Ctrl)
     if painting
-        && shift
+        && (shift || app.session.tool.resume_stroke)
         && !path_tool
         && brush_tool(app.session.tool.tool)
         && let Some(from) = app.last_paint_uv.and_then(|point| point.uv_for(&app.session))

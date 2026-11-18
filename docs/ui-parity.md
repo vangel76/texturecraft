@@ -119,6 +119,10 @@ built-in `udim_plane`, a uniform fill and a tile-1002 resolution override.
 - A missing mask-thumbnail menu does not mean mask effects are unavailable: the layer-name menu
   worked. A missing MaterialX UI option does not mean the exporter is absent.
 
+- Painting toggles have default keys: L symmetry, D lazy mouse, A resume previous stroke, N ignore stencil and
+  X invert greyscale (the mask value swap). All five are in the shortcut overview and rebindable. The Projection
+  tool has a Hide stencil when painting option (on by default); the overlay opacity slider stays in the same panel.
+
 ## Still unverified
 
 Pen pressure/tilt and other input hardware; brush-feel matching; projection/stencil, clone,

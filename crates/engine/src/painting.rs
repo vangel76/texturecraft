@@ -250,10 +250,12 @@ impl Session {
             Some(PaintTarget::Mask(effect)) if pickup.is_some() => self.doc.project.effect(effect).map(|(owner, _)| owner),
             _ => None,
         };
-        let stencil = if tool == Tool::Projection && !quick_mask { self.capture_stencil(viewport) } else { None };
+        // N: the Projection tool paints its plain brush, as if no stencil were set
+        let uses_stencil = tool == Tool::Projection && !quick_mask && !self.tool.ignore_stencil;
+        let stencil = if uses_stencil { self.capture_stencil(viewport) } else { None };
         let problem = if !erase && values.is_empty() && matches!(target, Some(PaintTarget::Layer(_))) {
             Some("no channel enabled to paint: enable channels in the tool's material")
-        } else if tool == Tool::Projection && !quick_mask && stencil.is_none() && !uv_mode {
+        } else if uses_stencil && stencil.is_none() && !uv_mode {
             Some("the Projection tool needs a stencil: pick an image in the tool properties (tool.stencil)")
         } else {
             None

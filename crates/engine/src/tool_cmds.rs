@@ -63,11 +63,47 @@ pub fn specs() -> Vec<CommandSpec> {
             swap_mask_value
         ),
         cmd!(
+            "tool.symmetry",
+            "Symmetry",
+            ["Tools"],
+            Some("L"),
+            "{enabled?: bool} — the toolbar's symmetry toggle (toggles when omitted); the symmetry settings stay",
+            always,
+            |s, p| toggle(s, p, |t| &mut t.brush.symmetry.enabled, "enabled")
+        ),
+        cmd!(
+            "tool.lazyMouse",
+            "Lazy mouse",
+            ["Tools"],
+            Some("D"),
+            "{enabled?: bool} — toggles when omitted; on uses the last lazy distance (20 px at first), off keeps it for the next time",
+            always,
+            lazy_mouse
+        ),
+        cmd!(
+            "tool.resumeStroke",
+            "Resume previous stroke",
+            ["Tools"],
+            Some("A"),
+            "{enabled?: bool} — toggles when omitted; while on, a new stroke is drawn as a straight line from where the previous one ended (as Shift+click does)",
+            always,
+            |s, p| toggle(s, p, |t| &mut t.resume_stroke, "enabled")
+        ),
+        cmd!(
+            "tool.ignoreStencil",
+            "Ignore stencil",
+            ["Tools"],
+            Some("N"),
+            "{enabled?: bool} — toggles when omitted; while on, the Projection tool paints its plain brush without the stencil image",
+            always,
+            |s, p| toggle(s, p, |t| &mut t.ignore_stencil, "enabled")
+        ),
+        cmd!(
             "tool.stencil",
             "Projection stencil",
             [],
             None,
-            "{image?: resource name, center?: [x,y] NDC, scale?: 0.01..10, rotation?: degrees, tile?, opacity?, clear?: bool}",
+            "{image?: resource name, center?: [x,y] NDC, scale?: 0.01..10, rotation?: degrees, tile?, opacity?, hideWhilePainting?: bool (default true: the 3D view hides the stencil image and outline while a stroke is painted), clear?: bool}",
             always,
             stencil
         ),
@@ -111,6 +147,29 @@ pub fn specs() -> Vec<CommandSpec> {
         ),
         cmd!("tool.state", "Tool state", [], None, "{}", always, |s, _| Ok(serde_json::to_value(&s.tool).unwrap_or(Value::Null))),
     ]
+}
+
+/// Set a switch of the tool state to `enabled`, or flip it when the param is missing
+fn toggle(session: &mut Session, params: &Value, switch: fn(&mut crate::session::ToolState) -> &mut bool, key: &str) -> Result<Value> {
+    let slot = switch(&mut session.tool);
+    *slot = boolp(params, key).unwrap_or(!*slot);
+    let enabled = *slot;
+    session.revision = session.revision.wrapping_add(1);
+    Ok(json!({ "enabled": enabled }))
+}
+
+/// Lazy mouse on or off. Off sets the distance to 0 and remembers it, on brings it back.
+fn lazy_mouse(session: &mut Session, params: &Value) -> Result<Value> {
+    let tool = &mut session.tool;
+    let on = boolp(params, "enabled").unwrap_or(tool.brush.lazy <= 0.0);
+    if on && tool.brush.lazy <= 0.0 {
+        tool.brush.lazy = if tool.lazy_distance > 0.0 { tool.lazy_distance } else { crate::session::default_lazy_distance() };
+    } else if !on && tool.brush.lazy > 0.0 {
+        tool.lazy_distance = tool.brush.lazy;
+        tool.brush.lazy = 0.0;
+    }
+    session.revision = session.revision.wrapping_add(1);
+    Ok(json!({ "enabled": session.tool.brush.lazy > 0.0, "lazy": session.tool.brush.lazy }))
 }
 
 pub(crate) fn set_tool(session: &mut Session, tool: Tool) -> Result<Value> {
@@ -389,6 +448,15 @@ fn swap_mask_value(session: &mut Session, _: &Value) -> Result<Value> {
 }
 
 fn stencil(session: &mut Session, params: &Value) -> Result<Value> {
+    // The display switch works with or without an image
+    if let Some(hide) = boolp(params, "hideWhilePainting") {
+        session.tool.hide_stencil_while_painting = hide;
+        session.revision = session.revision.wrapping_add(1);
+        if params.as_object().is_some_and(|object| object.len() == 1) {
+            return Ok(json!({ "hideWhilePainting": hide }));
+        }
+    }
+
     if boolp(params, "clear") == Some(true) {
         if let Some(cleared) = session.tool.stencil.take() {
             session.tool.stencil_look = cleared.look();

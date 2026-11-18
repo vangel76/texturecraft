@@ -74,6 +74,17 @@ alone) and `alphaInvert` (swaps paint and no paint inside the stamp square). The
 procedural, library and imported alphas alike and are returned by `tool.brush` with the other
 values. The alpha's rotation is the brush `angle`.
 
+`tool.symmetry`, `tool.lazyMouse`, `tool.resumeStroke` and `tool.ignoreStencil` each take
+`{enabled?: bool}` and toggle when it is omitted; they answer the default keys L, D, A and N and
+return `{enabled}` (`tool.lazyMouse` also `lazy`). Symmetry only flips the toolbar switch, its
+settings stay. Lazy mouse off sets the distance to 0 and remembers it (20 px the first time).
+Resume previous stroke makes the next stroke a straight line from where the last one ended in the
+3D and 2D views, as Shift+click does. Ignore stencil lets the Projection tool paint its plain
+brush, with or without a stencil image. `tool.stencil {hideWhilePainting}` (default `true`) hides
+the stencil image and outline in the 3D view while a stroke is painted; it needs no image. None
+of these is a history step. `tool.state` returns `lazy_distance`, `resume_stroke`,
+`ignore_stencil` and `hide_stencil_while_painting`.
+
 Bake mode applies edits in Common Settings and Mesh Map Settings to every texture set. Each
 set keeps its own enabled mesh-map checkboxes and Include in Bake flag. Edits update only the
 changed fields; Restore Defaults resets the whole parameter section across all sets.

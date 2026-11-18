@@ -40,6 +40,7 @@ mod mask_value_swap;
 mod named_layouts;
 mod nav_buttons;
 mod new_project_baked_maps;
+mod paint_keys;
 mod path_in_view;
 mod path_list;
 mod pen_pressure;

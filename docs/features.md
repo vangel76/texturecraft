@@ -21,6 +21,10 @@ Everything TextureCraft does today, by area. What's still missing is in [`ROADMA
   **particle brush**, **smudge**, **clone** (V + click sets the source, marked in the 3D and 2D views;
   an Aligned option keeps or restarts the offset per stroke), material picker, Shift+click straight
   lines (Ctrl+Shift+click snaps them to 15 degree steps), and painting directly in the **2D UV view**.
+  Default keys switch painting options on and off, and each can be rebound: **L** symmetry, **D** lazy mouse
+  (back to its last distance), **A** resume previous stroke (a new stroke is a straight line from where the last one
+  ended, as with Shift+click), **N** ignore stencil (the Projection tool paints its plain brush), and **X** inverts the mask value.
+  The Projection tool's **Hide stencil when painting** option (on by default) hides the stencil image and its outline while a stroke is painted.
   Brush, symmetry and the other tool settings stay when you open another project and when you
   restart the app.
 - **Geometry decals:** drop an image on the surface, then move, scale and turn its frame, keep the image's proportions
