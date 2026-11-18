@@ -40,6 +40,15 @@ result is `{files}`. A layer without an enabled mask is an error. The layer menu
 file runs it; Copy mask to clipboard puts the same mask on the system clipboard as an 8-bit
 grayscale image (the whole tile atlas for a UV-tiled set).
 
+`mask.add.bitmap {layer?, image}` adds a mask drawn by an image resource (a black mask with one fill
+effect reading it); it refuses a layer that has a mask and an image that is not imported. `mask.copy
+{layer?}` keeps the layer's mask (an instance's source's unless it has its own) on a mask clipboard,
+separate from the layer clipboard; `mask.paste {layer?}` replaces the layer's mask with a copy of it
+(own effect ids, painted pixels resampled to the layer's texture set). Their default keys are
+Ctrl+Alt+C and Ctrl+Alt+V. `layer.flattenAll {layer?}` flattens the layer, or an instance's source,
+and every instance of it in one undo step, each rendered from the document as it is before the
+step; it returns `{layers}`.
+
 `effect.set {effect, filter: "blur", radius: 5}` replaces a filter in place, preserving its
 stack position, blend, opacity and visibility. Replacement filters start from defaults plus
 the supplied parameters; naming the current filter instead edits it without resetting omitted

@@ -131,6 +131,28 @@ pub(crate) fn texture_set_list(app: &mut TextureCraftApp, ui: &mut Ui) {
 // ---------------------------------------------------------------------------------------------
 // Layers
 
+/// "Add bitmap mask": a submenu listing the image resources; the one picked draws the new mask.
+fn bitmap_mask_menu(app: &mut TextureCraftApp, ui: &mut Ui, row: Option<u64>, enabled: bool) {
+    let mut names: Vec<String> = app.session.images.keys().cloned().collect();
+    names.sort();
+    ui.add_enabled_ui(enabled, |ui| {
+        ui.menu_button(tr("Add bitmap mask"), |ui| {
+            if names.is_empty() {
+                ui.add_enabled(false, egui::Label::new(tr("No image resources: import one first")));
+            }
+            for name in names {
+                if ui.button(&name).clicked() {
+                    if let Some(layer) = row {
+                        app.run("layer.select", json!({ "layer": layer }));
+                    }
+                    app.run("mask.add.bitmap", json!({ "image": name }));
+                    ui.close();
+                }
+            }
+        });
+    });
+}
+
 /// The add-mask commands, for the selected layer or (`row`) the layer whose mask slot was clicked.
 fn add_mask_menu(app: &mut TextureCraftApp, ui: &mut Ui, row: Option<u64>) {
     let enabled = row.is_some() || app.session.selected_layer().is_some();
@@ -145,6 +167,7 @@ fn add_mask_menu(app: &mut TextureCraftApp, ui: &mut Ui, row: Option<u64>) {
             ui.close();
         }
     }
+    bitmap_mask_menu(app, ui, row, enabled);
 }
 
 pub(crate) fn layers(app: &mut TextureCraftApp, ui: &mut Ui) {
@@ -1413,6 +1436,7 @@ fn layer_context_menu(app: &mut TextureCraftApp, ui: &mut Ui, layer: &Layer) {
     let mask_on = project.layers.get(&project.mask_owner(layer.id)).is_some_and(|l| l.mask.as_ref().is_some_and(|m| m.enabled));
     run(app, ui, tr("Add white mask"), "mask.add.white", json!({"layer": lid}), layer.mask.is_none());
     run(app, ui, tr("Add black mask"), "mask.add.black", json!({"layer": lid}), layer.mask.is_none());
+    bitmap_mask_menu(app, ui, Some(lid), layer.mask.is_none());
     run(app, ui, tr("Add mask with color selection"), "mask.add.colorSelection", json!({"layer": lid}), true);
     ui.separator();
     run(app, ui, tr("Toggle mask"), "mask.toggle", json!({"layer": lid}), has_mask);
@@ -1420,6 +1444,9 @@ fn layer_context_menu(app: &mut TextureCraftApp, ui: &mut Ui, layer: &Layer) {
     run(app, ui, tr("Invert mask"), "mask.invert", json!({"layer": lid}), has_mask);
     run(app, ui, tr("Clear mask"), "mask.clear", json!({"layer": lid}), has_mask);
     run(app, ui, tr("Remove mask"), "mask.remove", json!({"layer": lid}), has_mask);
+    run(app, ui, tr("Copy mask"), "mask.copy", json!({"layer": lid}), has_mask);
+    let paste_mask = crate::menus::enabled(app, "mask.paste");
+    run(app, ui, tr("Paste into mask"), "mask.paste", json!({"layer": lid}), paste_mask);
     #[cfg(not(target_arch = "wasm32"))]
     if ui.add_enabled(mask_on, egui::Button::new(tr("Export mask to file..."))).clicked() {
         export_mask_file(app, layer);
@@ -1434,6 +1461,15 @@ fn layer_context_menu(app: &mut TextureCraftApp, ui: &mut Ui, layer: &Layer) {
     solo_menu(app, ui, layer.id);
     ui.separator();
     run(app, ui, tr("Flatten layer"), "layer.flatten", json!({"layer": lid}), !layer.is_group());
+    let has_instances = app.session.doc.project.layers.values().any(|other| other.instance_source() == Some(layer.id));
+    run(
+        app,
+        ui,
+        tr("Flatten all instances"),
+        "layer.flattenAll",
+        json!({"layer": lid}),
+        !layer.is_group() && (has_instances || layer.instance_source().is_some()),
+    );
     #[cfg(not(target_arch = "wasm32"))]
     if ui.button(tr("Create smart material")).clicked() {
         let file = crate::library_dir().join(format!("{}.tcmat", texturecraft_engine::formats::sanitize_resource_name(&layer.name)));

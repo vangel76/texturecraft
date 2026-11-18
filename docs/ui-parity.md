@@ -48,6 +48,14 @@ layer's mask, the resulting composite matching the engine-only result, and Save 
 the link. These run in the headless test harness; a live run in the native app on the integrated
 build is still not done.
 
+The layer menu also has the reference's **Add bitmap mask** (a submenu of the imported images),
+**Copy mask** and **Paste into mask** (Ctrl+Alt+C and Ctrl+Alt+V, both rebindable), and
+**Flatten all instances** (the layer and every instance of it in one undo step). Engine tests
+(`crates/engine/tests/it/mask_menu.rs`) and interface tests (`crates/ui-egui/tests/it/mask_menu.rs`)
+cover the commands, their undo, the menu entries and the keys; a live run in the native app is
+not done. Unlike the reference, which copies a mask as internal data only, the copy is kept
+in the session and is not put on the system clipboard.
+
 The relevant implementations are [layer rows, menus and fill/brush editors](../crates/ui-egui/src/dock.rs),
 [generator properties](../crates/ui-egui/src/generator_panel.rs),
 [export settings and parameters](../crates/ui-egui/src/windows.rs),

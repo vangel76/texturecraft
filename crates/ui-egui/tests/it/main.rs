@@ -36,6 +36,7 @@ mod layer_rename;
 mod layers_panel;
 mod levels_editor;
 mod mask_export;
+mod mask_menu;
 mod mask_value_swap;
 mod named_layouts;
 mod nav_buttons;
