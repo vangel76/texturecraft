@@ -803,6 +803,63 @@ pub(crate) fn log(app: &mut TextureCraftApp, ui: &mut Ui) {
     });
 }
 
+/// The text Help ▸ Export log... saves: a header with the export time, then every log line with
+/// its level. The session log keeps plain lines with no time or level of their own, so every line
+/// is written as `INFO`.
+pub(crate) fn log_text(lines: &[String], exported_at: &str) -> String {
+    let mut out = format!("TextureCraft log, exported {exported_at}\n");
+    for line in lines {
+        out.push_str(&format!("[{exported_at}] INFO  {line}\n"));
+    }
+    out
+}
+
+/// The current UTC time as `YYYY-MM-DD HH:MM:SS`.
+#[cfg(not(target_arch = "wasm32"))]
+fn now_utc() -> String {
+    let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs() as i64);
+    utc_text(secs)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn now_utc() -> String {
+    utc_text((js_sys::Date::now() / 1000.0) as i64)
+}
+
+/// Unix seconds as `YYYY-MM-DD HH:MM:SS` (UTC).
+fn utc_text(secs: i64) -> String {
+    let (days, rest) = (secs.div_euclid(86_400), secs.rem_euclid(86_400));
+    // Civil date from a day count (proleptic Gregorian)
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!("{year:04}-{month:02}-{day:02} {:02}:{:02}:{:02}", rest / 3600, rest % 3600 / 60, rest % 60)
+}
+
+/// Help ▸ Export log...: saves the whole log to a text file chosen in a save dialog.
+pub(crate) fn export_log(app: &mut TextureCraftApp) {
+    let text = log_text(&app.session.log, &now_utc());
+    #[cfg(not(target_arch = "wasm32"))]
+    app.ask_file(FileDialog::save().filter(tr("Text file"), &["txt"]).file_name("texturecraft-log.txt"), Bound::App, move |app, paths| {
+        let Some(path) = paths.first() else { return };
+        match std::fs::write(path, &text) {
+            Ok(()) => app.toast(trf("Exported the log to {path}", &[("path", &path.display().to_string())]), false),
+            Err(e) => app.toast(trf("Could not export the log: {error}", &[("error", &e.to_string())]), true),
+        }
+    });
+    #[cfg(target_arch = "wasm32")]
+    match crate::web_files::download("texturecraft-log.txt", text.as_bytes()) {
+        Ok(()) => app.toast(tr("Exported the log"), false),
+        Err(e) => app.toast(trf("Could not export the log: {error}", &[("error", &e)]), true),
+    }
+}
+
 // ---------------------------------------------------------------------------------------------
 // Files (wired to texturecraft-formats once it lands)
 
@@ -1425,5 +1482,17 @@ mod tests {
         h.run_steps(4);
         assert!(shown > 0 && untranslated == 0, "{code}: translated rows {shown}, English rows {untranslated}");
         assert!(h.query_all_by_label("Remove layer").count() > 0);
+    }
+}
+
+#[cfg(test)]
+mod log_export_tests {
+    use super::*;
+
+    #[test]
+    fn utc_text_formats_known_instants() {
+        assert_eq!(utc_text(0), "1970-01-01 00:00:00");
+        assert_eq!(utc_text(1_709_164_799), "2024-02-28 23:59:59");
+        assert_eq!(utc_text(1_709_164_800), "2024-02-29 00:00:00");
     }
 }

@@ -114,6 +114,7 @@ pub const CATALOG: &[Item] = &[
     it("Viewport", "Enable quick mask", "viewport.quickMask", Some("Y")),
     it("Viewport", "Edit quick mask", "viewport.quickMask.edit", Some("U")),
     it("Viewport", "Invert quick mask", "viewport.quickMask.invert", Some("Ctrl+Shift+I")),
+    it("Help", "Release notes...", "ui.help.releaseNotes", None),
     it("Help", "Documentation...", "ui.help.docs", None),
     it("Help", "Shortcuts list...", "ui.help.shortcuts", None),
     sep("Help"),
@@ -121,6 +122,7 @@ pub const CATALOG: &[Item] = &[
     it("Help", "ArtCraft website...", "ui.help.website", None),
     it("Help", "Report a bug...", "ui.help.bug", None),
     it("Help", "Show log...", "ui.view.log", None),
+    it("Help", "Export log...", "ui.help.exportLog", None),
     sep("Help"),
     #[cfg(not(target_arch = "wasm32"))]
     it("Help", "Check for Updates...", "ui.help.checkForUpdates", None),
@@ -225,6 +227,8 @@ pub fn invoke(app: &mut TextureCraftApp, ctx: &egui::Context, id: &str) {
         "ui.help.discord" => ctx.open_url(egui::OpenUrl::new_tab("https://discord.gg/artcraft")),
         "ui.help.website" => ctx.open_url(egui::OpenUrl::new_tab("https://getartcraft.com/apps/texturecraft")),
         "ui.help.docs" => ctx.open_url(egui::OpenUrl::new_tab("https://github.com/storytold/texturecraft#readme")),
+        "ui.help.releaseNotes" => ctx.open_url(egui::OpenUrl::new_tab("https://github.com/storytold/texturecraft/releases")),
+        "ui.help.exportLog" => crate::windows::export_log(app),
         "ui.help.bug" => ctx.open_url(egui::OpenUrl::new_tab("https://github.com/storytold/texturecraft/issues")),
         _ => {
             if crate::windows::file_action(app, ctx, id) {
