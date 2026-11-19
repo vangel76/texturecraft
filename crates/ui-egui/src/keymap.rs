@@ -45,7 +45,7 @@ pub fn bindings() -> &'static [Binding] {
     static ALL: std::sync::OnceLock<Vec<Binding>> = std::sync::OnceLock::new();
     ALL.get_or_init(|| {
         let mut v: Vec<Binding> = Vec::new();
-        for i in CATALOG.iter().filter(|i| i.label != "-") {
+        for i in CATALOG.iter().filter(|i| i.label != "-" && !crate::menus::UNAVAILABLE.contains(&i.id)) {
             if !v.iter().any(|b| b.id == i.id) {
                 v.push(Binding { id: i.id, group: i.menu, label: i.label, default: i.shortcut });
             }

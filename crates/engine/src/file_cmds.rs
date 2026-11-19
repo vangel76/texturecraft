@@ -28,7 +28,7 @@ pub fn specs() -> Vec<CommandSpec> {
         cmd!("file.open", "Open...", ["File"], Some("Ctrl+O"), "{path: .tcraft project or mesh file}", always, open),
         cmd!("file.save", "Save", ["File"], Some("Ctrl+S"), "{path?: .tcraft (default: the project's own file)}", always, save),
         cmd!("file.saveAs", "Save as...", ["File"], Some("Ctrl+Shift+S"), "{path}", always, save_as),
-        cmd!("file.saveCopy", "Save a copy...", ["File"], None, "{path}", always, save_copy),
+        cmd!("file.saveCopy", "Save as copy...", ["File"], None, "{path}", always, save_copy),
         cmd!("file.close", "Close", ["File"], Some("Ctrl+F4"), "{}", always, close),
         cmd!(
             "file.reimportMesh",

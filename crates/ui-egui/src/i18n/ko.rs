@@ -687,7 +687,7 @@ pub const TABLE: &[(&str, &str)] = &[
     ("Saturation", "채도"),
     ("Save", "저장"),
     ("Save UI Layout", "UI 레이아웃 저장"),
-    ("Save a copy...", "사본 저장..."),
+    ("Save as copy...", "사본 저장..."),
     ("Save as...", "다른 이름으로 저장..."),
     ("Save current layout...", "현재 레이아웃 저장..."),
     ("Save render...", "렌더 저장..."),

@@ -64,6 +64,23 @@ fn with_formats(channels: &[Channel]) -> Vec<(Channel, ChannelFormat)> {
 /// The template the New project dialog starts with.
 pub const DEFAULT_TEMPLATE: &str = "PBR - Metallic Roughness";
 
+/// How the New project list names the default template
+pub const DEFAULT_LABEL: &str = "Default (OpenPBR)";
+/// Appended to the other built-in templates in the list
+pub const BUILTIN_SUFFIX: &str = " (starter_assets)";
+/// Appended to the user's templates in the list
+pub const USER_SUFFIX: &str = " (your_assets)";
+
+/// The name the New project list shows for a template: "Default (OpenPBR)" for the default,
+/// the other built-ins with " (starter_assets)", the user's with " (your_assets)".
+pub fn template_label(name: &str, builtin: bool) -> String {
+    match (builtin, name == DEFAULT_TEMPLATE) {
+        (true, true) => DEFAULT_LABEL.to_string(),
+        (true, false) => format!("{name}{BUILTIN_SUFFIX}"),
+        (false, _) => format!("{name}{USER_SUFFIX}"),
+    }
+}
+
 /// The built-in templates.
 pub fn builtin_templates() -> Vec<ProjectTemplate> {
     use Channel::*;
@@ -86,7 +103,15 @@ pub struct UserTemplates {
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
-        cmd!("project.templates", "Project templates", [], None, "{} → [{name, builtin, resolution, normalFormat, channels: [ids], specGloss}]", always, list),
+        cmd!(
+            "project.templates",
+            "Project templates",
+            [],
+            None,
+            "{} → [{name, label, builtin, resolution, normalFormat, channels: [ids], specGloss}]",
+            always,
+            list
+        ),
         cmd!(
             "project.template.save",
             "Save project settings as template",
@@ -124,9 +149,12 @@ fn validated(mut t: ProjectTemplate) -> std::result::Result<ProjectTemplate, Str
 }
 
 impl Session {
-    /// A built-in or user project template by name (case-insensitive).
+    /// A built-in or user project template by name or by the label the New project list shows
+    /// (case-insensitive).
     pub fn template(&self, name: &str) -> Option<ProjectTemplate> {
-        builtin_templates().into_iter().chain(self.templates.list.iter().cloned()).find(|t| same(&t.name, name))
+        let builtin = builtin_templates();
+        let all = || builtin.iter().map(|t| (t, true)).chain(self.templates.list.iter().map(|t| (t, false)));
+        all().find(|(t, _)| same(&t.name, name)).or_else(|| all().find(|(t, builtin)| same(&template_label(&t.name, *builtin), name))).map(|(t, _)| t.clone())
     }
 
     /// Start this (new, unpainted) project from template `t`: its channels on every texture set
@@ -191,6 +219,7 @@ fn list(s: &mut Session, _: &Value) -> Result<Value> {
     let entry = |t: &ProjectTemplate, builtin: bool| {
         json!({
             "name": t.name,
+            "label": template_label(&t.name, builtin),
             "builtin": builtin,
             "resolution": t.resolution,
             "normalFormat": if t.normal_format == NormalFormat::DirectX { "directX" } else { "openGl" },
@@ -204,7 +233,7 @@ fn list(s: &mut Session, _: &Value) -> Result<Value> {
 fn save(s: &mut Session, p: &Value) -> Result<Value> {
     const CMD: &str = "project.template.save";
     let name = strp(p, "name").unwrap_or_default();
-    if builtin_templates().iter().any(|t| same(&t.name, name)) {
+    if builtin_templates().iter().any(|t| same(&t.name, name) || same(&template_label(&t.name, true), name)) {
         return Err(bad(CMD, format!("\"{}\" is a built-in template (read-only); choose another name", name.trim())));
     }
     let project = &s.doc.project;
@@ -310,5 +339,27 @@ mod tests {
         execute(&mut fresh, "project.new", &json!({})).unwrap();
         assert!(fresh.template("My glow").is_some());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_list_names_templates_like_the_reference() {
+        assert_eq!(template_label(DEFAULT_TEMPLATE, true), "Default (OpenPBR)");
+        assert_eq!(template_label("Unlit - Emissive", true), "Unlit - Emissive (starter_assets)");
+        assert_eq!(template_label("Mine", false), "Mine (your_assets)");
+
+        let mut s = Session::new_project("t", texturecraft_geom::primitives::material_ball(), "builtin:material_ball", None, 128).unwrap();
+        execute(&mut s, "project.template.save", &json!({"name": "Mine"})).unwrap();
+        let labels: Vec<String> =
+            execute(&mut s, "project.templates", &json!({})).unwrap().as_array().unwrap().iter().map(|t| t["label"].as_str().unwrap().to_string()).collect();
+        assert_eq!(labels.first().map(String::as_str), Some("Default (OpenPBR)"));
+        assert_eq!(labels.last().map(String::as_str), Some("Mine (your_assets)"));
+        assert!(labels.contains(&"Unlit - Emissive (starter_assets)".to_string()));
+
+        // A label finds its template, and a built-in's label is not free for a user template
+        assert_eq!(s.template("default (openpbr)").unwrap().name, DEFAULT_TEMPLATE);
+        assert_eq!(s.template("Mine (your_assets)").unwrap().name, "Mine");
+        assert!(execute(&mut s, "project.template.save", &json!({"name": "Default (OpenPBR)"})).is_err());
+        execute(&mut s, "project.new", &json!({"template": "Unlit - Emissive (starter_assets)"})).unwrap();
+        assert_eq!(s.doc.project.texture_sets[0].channels, s.template("Unlit - Emissive").unwrap().channels);
     }
 }

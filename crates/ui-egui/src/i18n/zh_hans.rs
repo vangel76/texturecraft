@@ -645,7 +645,7 @@ pub const TABLE: &[(&str, &str)] = &[
     ("Saturation", "饱和度"),
     ("Save", "保存"),
     ("Save UI Layout", "保存界面布局"),
-    ("Save a copy...", "保存副本..."),
+    ("Save as copy...", "保存副本..."),
     ("Save as...", "另存为..."),
     ("Save current layout...", "保存当前布局..."),
     ("Save render...", "保存渲染结果..."),

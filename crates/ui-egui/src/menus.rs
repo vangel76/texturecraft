@@ -45,7 +45,9 @@ pub const CATALOG: &[Item] = &[
     sep("File"),
     it("File", "Save", "file.save", Some("Ctrl+S")),
     it("File", "Save as...", "file.saveAs", Some("Ctrl+Shift+S")),
-    sub("File", "More save options", "Save a copy...", "file.saveCopy", None),
+    sub("File", "More save options", "Save as template...", "ui.saveAsTemplate", None),
+    sub("File", "More save options", "Save and reduce file size", "ui.saveReduced", None),
+    sub("File", "More save options", "Save as copy...", "file.saveCopy", None),
     it("File", "Remove unused resources...", "file.removeUnused", None),
     sep("File"),
     it("File", "Import resources...", "resource.import", None),
@@ -138,11 +140,27 @@ fn is_ui(id: &str) -> bool {
 
 /// Shell items that act on the open project: greyed while none is open
 fn ui_needs_project(id: &str) -> bool {
-    matches!(id, "ui.export" | "ui.projectConfig" | "ui.uvChecker" | "ui.mode.bake" | "ui.mode.paint" | "ui.mode.render")
+    matches!(id, "ui.export" | "ui.projectConfig" | "ui.uvChecker" | "ui.mode.bake" | "ui.mode.paint" | "ui.mode.render" | "ui.saveAsTemplate")
+}
+
+/// Menu items the reference has and TextureCraft has no function for yet: shown greyed with the
+/// hint "Not available yet", never run, and not listed as implemented
+pub const UNAVAILABLE: [&str; 1] = ["ui.saveReduced"];
+
+/// The tooltip the reference shows on a menu item
+fn tooltip_of(id: &str) -> Option<&'static str> {
+    match id {
+        "ui.saveAsTemplate" => Some("Save as template"),
+        _ => None,
+    }
 }
 
 /// Whether an item can run now
 pub fn enabled(app: &TextureCraftApp, id: &str) -> bool {
+    if UNAVAILABLE.contains(&id) {
+        return false;
+    }
+
     if let Some(panel) = crate::docking::view_panel(id) {
         return panel.available_in(app.ui.mode);
     }
@@ -170,7 +188,7 @@ pub fn enabled(app: &TextureCraftApp, id: &str) -> bool {
 
 /// Whether an id is implemented at all (parity report).
 pub fn implemented(id: &str) -> bool {
-    is_ui(id) || texturecraft_engine::find(id).is_some()
+    !UNAVAILABLE.contains(&id) && is_ui(id) || texturecraft_engine::find(id).is_some()
 }
 
 /// Invoke a menu item (menus, shortcuts, palette, control channel `ui.menu.invoke`)
@@ -201,6 +219,7 @@ pub fn invoke(app: &mut TextureCraftApp, ctx: &egui::Context, id: &str) {
         "ui.quit" => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
         #[cfg(not(target_arch = "wasm32"))]
         "ui.projectConfig" => crate::project_config::open(app),
+        "ui.saveAsTemplate" => crate::windows::save_as_template(app),
 
         // The browser cannot change the mesh file, so open Display instead
         #[cfg(target_arch = "wasm32")]
@@ -310,7 +329,14 @@ fn menu_item(app: &mut TextureCraftApp, ctx: &egui::Context, ui: &mut egui::Ui, 
     if let Some(c) = checked {
         b = b.selected(c);
     }
-    if ui.add_enabled(on, b).clicked() {
+    let mut response = ui.add_enabled(on, b);
+    if let Some(tip) = tooltip_of(item.id) {
+        response = response.on_hover_text(tr(tip));
+    }
+    if UNAVAILABLE.contains(&item.id) {
+        response = response.on_disabled_hover_text(tr(crate::unavailable::NOT_AVAILABLE));
+    }
+    if response.clicked() {
         invoke(app, ctx, item.id);
         ui.close();
     }

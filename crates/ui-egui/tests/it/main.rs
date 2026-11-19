@@ -71,6 +71,7 @@ mod snapped_lines;
 mod split_divider;
 mod temp_dir;
 mod template_invert;
+mod templates_681;
 mod tool_availability;
 mod tool_settings_saved;
 mod toolbar;

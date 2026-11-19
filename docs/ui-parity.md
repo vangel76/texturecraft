@@ -71,6 +71,17 @@ that closes it back onto the bar; the float is saved with the UI state.
   and *Export shaders parameters* greyed, *Include all*, *Save settings* and "N textures selected
   for export"). The prompt's *With displacement/tessellation* choice and both option checkboxes are
   greyed; TextureCraft exports the mesh as it is.
+- **Project templates:** *File ▸ More save options* holds *Save as template...* (tooltip "Save as
+  template"; save dialog "Save template" in the user templates folder with one file type, no
+  confirmation, the template shows up in New project at once), *Save and reduce file size*
+  (greyed, "Not available yet") and *Save as copy...*. The New project list reads "Default
+  (OpenPBR)", then the other built-ins with " (starter_assets)", then the user's with
+  " (your_assets)"; the info tooltip is the reference text; the list opens on the template of the
+  last created project. Deviations: the built-in templates are TextureCraft's own four (the
+  reference's 26 starter templates are not in the measured data), the default template is
+  TextureCraft's "PBR - Metallic Roughness" shown under the reference name, and the template file
+  is always stored in the user templates folder (the file name chosen in the dialog becomes the
+  template name) as a `.json` file instead of `.spt`.
 - **Log:** *GENERAL* and *ASSETS* tabs. Every entry has a source, a level and a message; the
   lines read `[Source] message` with no time stamp, light grey for info, yellow-orange for
   warnings and red for errors. Entries with the source `Library` (resources, templates, presets,

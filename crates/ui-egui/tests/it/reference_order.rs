@@ -35,7 +35,7 @@ fn named<'a>(found: &'a [(f32, String, bool)], name: &str) -> Option<&'a (f32, S
 fn every_menu_lists_its_items_in_the_reference_order() {
     // Items the reference has and TextureCraft lacks are absent; TextureCraft's own sit where they fit
     let expected = [
-        "File: New project... | Open... | - | Open sample project... | - | Close | - | Save | Save as... | More save options > Save a copy... | Remove unused resources... | - | Import resources... | Import MaterialX material... | Import PBR texture folder... | Import material... | Export Textures... | Export Mesh... | - | Quit",
+        "File: New project... | Open... | - | Open sample project... | - | Close | - | Save | Save as... | More save options > Save as template... | More save options > Save and reduce file size | More save options > Save as copy... | Remove unused resources... | - | Import resources... | Import MaterialX material... | Import PBR texture folder... | Import material... | Export Textures... | Export Mesh... | - | Quit",
         "Edit: Undo | Redo | Project Configuration... | Reimport mesh | Settings...",
         "Mode: Bake Mesh Maps | Painting | Rendering (path traced)",
         "Window: Views > Assets | Views > Common Settings | Views > Display Settings | Views > Export | Views > History | Views > Layers | Views > Log | Views > Mesh Map Bakers | Views > Mesh Map Settings | Views > Properties | Views > Shader Settings | Views > Texture Sets | Views > Texture Set Settings | - | Save UI Layout > Save current layout... | Load UI Layout | Layouts > Save current layout as... | Layouts > Manage layouts... | - | Hide UI | Reset panel layout | Reset UI",

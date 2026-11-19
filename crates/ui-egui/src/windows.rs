@@ -407,6 +407,23 @@ pub fn layout_file(app: &mut TextureCraftApp, save: bool) {
     });
 }
 
+/// File > More save options > Save as template...: the project's settings as a template in the
+/// user templates folder. It saves without a confirmation and shows up in New project at once.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn save_as_template(app: &mut TextureCraftApp) {
+    let dialog = FileDialog::save().title(tr("Save template")).filter(tr("Project template"), &["json"]).directory(crate::user_dir("templates"));
+    app.ask_file(dialog, Bound::Project, |app, paths| {
+        if let Some(name) = paths.first().and_then(|path| path.file_stem()).and_then(|stem| stem.to_str()) {
+            app.run("project.template.save", json!({"name": name}));
+        }
+    });
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn save_as_template(app: &mut TextureCraftApp) {
+    app.toast(tr("Saving templates to files is available in the desktop app"), false);
+}
+
 /// The browser has no file paths; layouts persist with the rest of the UI state.
 #[cfg(target_arch = "wasm32")]
 pub fn layout_file(app: &mut TextureCraftApp, _save: bool) {

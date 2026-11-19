@@ -678,7 +678,7 @@ pub const TABLE: &[(&str, &str)] = &[
     ("Saturation", "التشبع"),
     ("Save", "حفظ"),
     ("Save UI Layout", "حفظ تخطيط الواجهة"),
-    ("Save a copy...", "حفظ نسخة..."),
+    ("Save as copy...", "حفظ نسخة..."),
     ("Save as...", "حفظ باسم..."),
     ("Save current layout...", "حفظ التخطيط الحالي..."),
     ("Save render...", "حفظ التصيير..."),

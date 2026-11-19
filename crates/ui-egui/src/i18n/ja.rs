@@ -696,7 +696,7 @@ pub const TABLE: &[(&str, &str)] = &[
     ("Saturation", "彩度"),
     ("Save", "保存"),
     ("Save UI Layout", "UIレイアウトを保存"),
-    ("Save a copy...", "コピーを保存..."),
+    ("Save as copy...", "コピーを保存..."),
     ("Save as...", "名前を付けて保存..."),
     ("Save current layout...", "現在のレイアウトを保存..."),
     ("Save render...", "レンダリング結果を保存..."),
