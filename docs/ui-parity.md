@@ -71,8 +71,14 @@ that closes it back onto the bar; the float is saved with the UI state.
   and *Export shaders parameters* greyed, *Include all*, *Save settings* and "N textures selected
   for export"). The prompt's *With displacement/tessellation* choice and both option checkboxes are
   greyed; TextureCraft exports the mesh as it is.
-- **Log:** *General* and *Assets* tabs. Messages are sorted by how they begin (see
-  `log_panel::ASSET_PREFIXES`); the status bar still shows the latest message of either.
+- **Log:** *GENERAL* and *ASSETS* tabs. Every entry has a source, a level and a message; the
+  lines read `[Source] message` with no time stamp, light grey for info, yellow-orange for
+  warnings and red for errors. Entries with the source `Library` (resources, templates, presets,
+  PBR and MaterialX imports) go under ASSETS; the status bar still shows the latest message of
+  either. Lines multi-select (click, Ctrl+click, Shift+click). The right-click menu (on a line or
+  on the empty space) has *Copy to clipboard* `Ctrl+C`, a separator and *Clear* (GENERAL) or
+  *Clear all* and *Clear selected* (ASSETS). The reference's ASSETS filter button (warning icon,
+  no tooltip, effect not measured) is not built.
 - **Display Settings:** *View mode* above the section tabs; Environment settings (Environment Map,
   Opacity, Exposure (EV), Blur, Rotation; *Override environment map color space* with *Auto*,
   *Environment Alignment* *World*), Shadows (*Shadows*; *Computation mode* *Lightweight* and

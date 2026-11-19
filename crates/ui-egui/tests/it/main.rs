@@ -38,6 +38,7 @@ mod layer_multi_select;
 mod layer_rename;
 mod layers_panel;
 mod levels_editor;
+mod log_panel_680;
 mod mask_export;
 mod mask_value_swap;
 mod named_layouts;

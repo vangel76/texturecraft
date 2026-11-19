@@ -463,7 +463,7 @@ pub struct Session {
     /// Bumps on every document change.
     pub revision: u64,
     /// Messages for the UI (status bar / toasts).
-    pub log: Vec<String>,
+    pub log: crate::log::LogStore,
     /// The last stroke's camera visibility buffer: reused while the camera, view size and mesh
     /// are unchanged, so back-to-back dabs start instantly.
     pub(crate) depth_cache: Option<DepthCache>,
@@ -526,7 +526,7 @@ impl Session {
             project_open: true,
             modified: false,
             revision: 1,
-            log: Vec::new(),
+            log: crate::log::LogStore::new(),
             depth_cache: None,
             polygon_fill_drag: None,
             export_presets: Default::default(),
@@ -578,7 +578,7 @@ impl Session {
         let res = check_resolution(resolution)?;
         let mut project = Project::new(name, mesh_ref);
         let mats = if mesh.materials.is_empty() { vec!["Default".to_string()] } else { mesh.materials.clone() };
-        let mut log = Vec::new();
+        let mut log = crate::log::LogStore::new();
         for (i, m) in mats.iter().enumerate() {
             let mut ts = TextureSet::new(m.clone(), i, res);
             ts.uv_tiles = detect_uv_tiles(&mesh, i, uv_tiles, &mut log).map_err(|e| EngineError::Other(format!("texture set \"{m}\": {e}")))?;
@@ -594,7 +594,7 @@ impl Session {
             mesh,
             mesh_source,
         )?;
-        s.log.extend(log);
+        s.log.append(log);
         Ok(s)
     }
 
@@ -1249,7 +1249,7 @@ pub fn check_size(ts: &TextureSet) -> Result<()> {
 /// UDIM numbers of the UV tiles material `m` of `mesh` paints, ascending: `mode` as in
 /// [`Session::new_project_tiled`]. Tiles outside 1001..=2000 are an error in UV tile mode and
 /// leave an automatic set classic (with a note in `log`).
-pub(crate) fn detect_uv_tiles(mesh: &Mesh, m: usize, mode: Option<bool>, log: &mut Vec<String>) -> std::result::Result<Vec<u32>, String> {
+pub(crate) fn detect_uv_tiles(mesh: &Mesh, m: usize, mode: Option<bool>, log: &mut crate::log::LogStore) -> std::result::Result<Vec<u32>, String> {
     if mode == Some(false) {
         return Ok(Vec::new());
     }
@@ -1266,7 +1266,7 @@ pub(crate) fn detect_uv_tiles(mesh: &Mesh, m: usize, mode: Option<bool>, log: &m
         }
         (Some(true), None) => Err("UVs lie outside UDIM tiles 1001..2000".into()),
         (None, None) => {
-            log.push(format!("material {m}: UVs outside UDIM tiles 1001..2000; painting tile 1001 only"));
+            log.warn("Importer", format!("material {m}: UVs outside UDIM tiles 1001..2000; painting tile 1001 only"));
             Ok(Vec::new())
         }
         (Some(false), _) => Ok(Vec::new()),

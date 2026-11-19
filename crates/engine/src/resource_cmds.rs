@@ -113,7 +113,7 @@ impl Session {
                 Ok(image) => {
                     self.images.insert(name.clone(), decoded(image));
                 }
-                Err(error) => self.log.push(format!("resource {name}: {error}")),
+                Err(error) => self.log.error(crate::log::LIBRARY_SOURCE, format!("resource {name}: {error}")),
             }
         }
     }

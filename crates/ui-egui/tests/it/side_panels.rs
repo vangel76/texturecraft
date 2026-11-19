@@ -168,20 +168,20 @@ const STATUS_BAR_TOP: f32 = WINDOW_SIZE.y - 22.0;
 #[test]
 fn the_log_tabs_show_one_channel_each() {
     let mut harness = app();
-    harness.state_mut().session.log.push("Saved /somewhere/project.tcraft".into());
-    harness.state_mut().session.log.push("resource stone.png: not an image".into());
+    harness.state_mut().session.log.info("Project", "Saved /somewhere/project.tcraft");
+    harness.state_mut().session.log.error("Library", "resource stone.png: not an image");
     click_rail(&mut harness, "Log");
 
-    assert!(harness.query_by_label("General").is_some());
-    assert!(log_lists(&harness, "Saved /somewhere/project.tcraft"));
-    assert!(!log_lists(&harness, "resource stone.png: not an image"), "asset messages wait under Assets");
+    assert!(harness.query_by_label("GENERAL").is_some());
+    assert!(log_lists(&harness, "[Project] Saved /somewhere/project.tcraft"));
+    assert!(!log_lists(&harness, "[Library] resource stone.png: not an image"), "asset messages wait under ASSETS");
 
-    // The Log's own Assets tab, right of the dock's Assets panel tab
-    harness.get_all_by_label("Assets").max_by(|a, b| a.rect().left().total_cmp(&b.rect().left())).unwrap().click();
+    // The Log's own ASSETS tab
+    harness.get_by_label("ASSETS").click();
     harness.run_steps(SETTLE_FRAMES);
 
-    assert!(log_lists(&harness, "resource stone.png: not an image"));
-    assert!(!log_lists(&harness, "Saved /somewhere/project.tcraft"));
+    assert!(log_lists(&harness, "[Library] resource stone.png: not an image"));
+    assert!(!log_lists(&harness, "[Project] Saved /somewhere/project.tcraft"));
 }
 
 #[test]

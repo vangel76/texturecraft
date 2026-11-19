@@ -308,12 +308,12 @@ fn about(app: &mut TextureCraftApp, ctx: &egui::Context) {
 }
 
 /// The text Help ▸ Export log... saves: a header with the export time, then every log line with
-/// its level. The session log keeps plain lines with no time or level of their own, so every line
-/// is written as `INFO`.
-pub(crate) fn log_text(lines: &[String], exported_at: &str) -> String {
+/// its level and source. The session log keeps no time of its own, so every line gets the export
+/// time.
+pub(crate) fn log_text(lines: &[texturecraft_engine::log::LogEntry], exported_at: &str) -> String {
     let mut out = format!("TextureCraft log, exported {exported_at}\n");
     for line in lines {
-        out.push_str(&format!("[{exported_at}] INFO  {line}\n"));
+        out.push_str(&format!("[{exported_at}] {:<5} {}\n", line.level.tag(), line.line()));
     }
     out
 }
@@ -459,7 +459,7 @@ pub fn file_action(app: &mut TextureCraftApp, _ctx: &egui::Context, id: &str) ->
                 {
                     let name = result["material"].as_str().unwrap_or_default();
                     for warning in result["warnings"].as_array().into_iter().flatten().filter_map(serde_json::Value::as_str) {
-                        app.session.log.push(format!("MaterialX {name}: {warning}"));
+                        app.session.log.warn(texturecraft_engine::log::LIBRARY_SOURCE, format!("MaterialX {name}: {warning}"));
                     }
                     app.toast(trf("Imported {name}", &[("name", &name)]), false);
                     app.ui.dock.focus(crate::docking::Panel::Layers);

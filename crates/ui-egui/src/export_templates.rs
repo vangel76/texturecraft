@@ -502,7 +502,7 @@ pub fn load_library(app: &mut TextureCraftApp, storage: Option<&dyn eframe::Stor
     {
         let _ = storage;
         let skipped = app.session.load_export_presets(crate::user_dir("export-presets"));
-        app.session.log.extend(skipped.into_iter().map(|w| format!("Export template skipped: {w}")));
+        app.session.log.warnings(texturecraft_engine::log::LIBRARY_SOURCE, skipped.into_iter().map(|w| format!("Export template skipped: {w}")));
     }
     #[cfg(target_arch = "wasm32")]
     for p in storage.and_then(|s| eframe::get_value::<Vec<ExportPreset>>(s, STORAGE_KEY)).unwrap_or_default() {

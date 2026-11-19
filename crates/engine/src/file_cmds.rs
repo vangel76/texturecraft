@@ -173,14 +173,17 @@ impl Session {
         session.doc.project.mesh_file = leaf_of(file_name);
         session.doc.project.cameras = imported.cameras;
 
-        session.log.extend(imported.report.warnings);
-        session.log.push(format!(
-            "Imported {} ({} triangles, {} materials{})",
-            file_name,
-            imported.report.triangles,
-            imported.report.materials,
-            if imported.report.uvs_generated { ", UVs generated" } else { "" }
-        ));
+        session.log.warnings("Importer", imported.report.warnings);
+        session.log.info(
+            "Importer",
+            format!(
+                "Imported {} ({} triangles, {} materials{})",
+                file_name,
+                imported.report.triangles,
+                imported.report.materials,
+                if imported.report.uvs_generated { ", UVs generated" } else { "" }
+            ),
+        );
 
         Ok(session)
     }
@@ -207,7 +210,7 @@ impl Session {
         s.sync_images();
         s.load_bake_meshes(pf.high_poly, pf.cage);
         s.load_bake_paint(pf.bake_paint);
-        s.log.extend(pf.warnings);
+        s.log.warnings("Project", pf.warnings);
 
         Ok(s)
     }
@@ -398,7 +401,7 @@ mod native {
             let f = read_mesh("file.open", path)?;
             let mut s = Session::from_mesh_bytes(&f.name, &f.bytes, 2048, &stem_of(path))?;
             s.doc.project.mesh_path = absolute(path);
-            s.log.extend(f.warnings);
+            s.log.warnings("Importer", f.warnings);
             Ok(s)
         }
     }
@@ -410,7 +413,7 @@ mod native {
             s.path = Some(path.clone());
             s.modified = false;
         }
-        s.log.push(format!("Saved {path}"));
+        s.log.info("Project", format!("Saved {path}"));
         Ok(json!({ "path": path }))
     }
 }
@@ -433,7 +436,7 @@ fn new_from_mesh(session: &mut Session, params: &Value) -> Result<Value> {
 
     let mut next = Session::from_mesh_source(&mesh_file.name, Cow::Owned(mesh_file.bytes), u32::try_from(resolution).unwrap_or(0), &name, uv_tiles)?;
     next.doc.project.mesh_path = native::absolute(path);
-    next.log.extend(mesh_file.warnings);
+    next.log.warnings("Importer", mesh_file.warnings);
     if crate::commands::boolp(params, "importCameras") == Some(false) {
         next.doc.project.cameras.clear();
     }
@@ -531,7 +534,7 @@ impl Session {
             doc.project.mesh_file = mesh_file;
         }
         let mut next = Session::new(doc, mesh, source)?;
-        next.log.extend(warnings);
+        next.log.warnings("Importer", warnings);
         next.path = self.path.clone();
         next.sync_images();
         // The high polys and the skew map stay. The cage is sampled by triangle index and
@@ -541,10 +544,10 @@ impl Session {
         next.bake_meshes.low_base_color = Default::default();
         if next.bake_meshes.cage.is_some() && *next.mesh != *self.mesh {
             next.bake_meshes.cage = None;
-            next.log.push("the cage mesh was dropped: the low-poly mesh changed".into());
+            next.log.warn("Project", "the cage mesh was dropped: the low-poly mesh changed");
         }
         if self.doc.bake_paint.keys().any(|(_, target)| *target == texturecraft_core::BakePaintTarget::Skew) && self.source.uvs != next.source.uvs {
-            next.log.push("the skew map is laid over the old UV layout; check it in Bake mode".into());
+            next.log.warn("Project", "the skew map is laid over the old UV layout; check it in Bake mode");
         }
         next.modified = true;
         next.project_id = self.project_id;
@@ -566,7 +569,7 @@ fn export_textures(s: &mut Session, p: &Value) -> Result<Value> {
     if p.get("materialX").and_then(Value::as_bool).unwrap_or(false) {
         written.extend(write_materialx(s, &sets, &opts, std::path::Path::new(&dir), &mut warnings)?);
     }
-    s.log.push(format!("Exported {} textures to {dir}", written.len()));
+    s.log.info("Exporter", format!("Exported {} textures to {dir}", written.len()));
     Ok(json!({ "files": written.iter().map(|p| p.display().to_string()).collect::<Vec<_>>(), "warnings": warnings }))
 }
 
@@ -638,7 +641,7 @@ fn export_mesh(s: &mut Session, p: &Value) -> Result<Value> {
         textures.push(file);
     }
     write(&out.path, &out.bytes)?;
-    s.log.push(format!("Exported mesh to {}", out.path));
+    s.log.info("Exporter", format!("Exported mesh to {}", out.path));
     Ok(out.reply(textures))
 }
 

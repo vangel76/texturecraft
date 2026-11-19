@@ -354,7 +354,9 @@ impl TextureCraftApp {
             }
 
             let skipped = app.session.load_templates(user_dir("templates"));
-            app.session.log.extend(skipped.into_iter().map(|warning| format!("Project template skipped: {warning}")));
+            app.session
+                .log
+                .warnings(texturecraft_engine::log::LIBRARY_SOURCE, skipped.into_iter().map(|warning| format!("Project template skipped: {warning}")));
 
             // Load presets before control commands can access the session
             for warning in app.session.load_brush_presets(user_dir("brushes")) {
@@ -432,7 +434,7 @@ impl TextureCraftApp {
 
     fn report_ui_storage_warning(&mut self) {
         if let Some(warning) = self.ui_store.take_warning() {
-            self.session.log.push(warning.clone());
+            self.session.log.warn("UI", warning.clone());
             self.toast_sticky(warning);
         }
     }
@@ -616,14 +618,18 @@ impl TextureCraftApp {
 
     /// Note a texture set whose bake failed: one Log line, counted in the summary
     fn bake_failed(&mut self, set_index: usize, error: &str) {
-        self.session.log.push(format!("Bake of texture set {set_index} failed: {error}"));
+        self.session.log.error("Baker", format!("Bake of texture set {set_index} failed: {error}"));
         self.bake_report.failed.push(set_index);
     }
 
     /// The toast that ends a bake (maps baked, time, failures) and its line in the Log
     fn finish_bake_report(&mut self) {
         let (text, line, failed) = self.bake_report.summary(self.last_time);
-        self.session.log.push(line);
+        if failed {
+            self.session.log.warn("Baker", line);
+        } else {
+            self.session.log.info("Baker", line);
+        }
         self.toast(text, failed);
     }
 

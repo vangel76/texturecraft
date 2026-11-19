@@ -208,8 +208,10 @@ Everything TextureCraft does today, by area. What's still missing is in [`ROADMA
   beside it; *Undock* makes one a floating window, and its *Dock* button puts it back on the bar.
 - **Display and Shader Settings** are one scrolling page each: their section tabs jump to a
   section, and scrolling highlights the tab of the section in view.
-- A **Log** panel with a *General* and an *Assets* tab: asset messages (resources that do not
-  decode, skipped templates and presets, PBR folder and MaterialX import warnings) go under Assets.
+- A **Log** panel with a *GENERAL* and an *ASSETS* tab: asset messages (resources that do not
+  decode, skipped templates and presets, PBR folder and MaterialX import warnings) go under ASSETS.
+  Lines read `[Source] message`, coloured by level (info, warning, error), and can be
+  multi-selected; the right-click menu copies them (`Ctrl+C`) or clears them.
 - **No project at launch**: empty views, panels and toolbars until you create or open one (File ›
   New project, Open, Recent projects, Open sample project); File › Close returns to that state.
 - A **data folder** of your choice for autosaves, smart materials, presets, templates and UI
@@ -221,7 +223,7 @@ Everything TextureCraft does today, by area. What's still missing is in [`ROADMA
   interval. Shortcuts rebinds any command. Libraries adds or removes folders whose saved smart
   materials and masks the shelf lists.
 - A **shortcut editor** with conflict detection, listing every menu item and every command a key can run (commands that need a path, name or similar are left out), and every shortcut shown in its tooltip.
-- **Help menu:** Release notes... opens the project's releases page in the browser; Export log... saves the whole log (every channel, one line each with time and level) to a text file chosen in a save dialog.
+- **Help menu:** Release notes... opens the project's releases page in the browser; Export log... saves the whole log (every channel, one line each with time, level and source) to a text file chosen in a save dialog.
 - A **History** panel: click any step to go back to it, or forward again to an undone one.
 - **10 languages:** English, French, German, Spanish, Portuguese, Italian, Japanese, Chinese,
   Korean and Arabic, switchable live.

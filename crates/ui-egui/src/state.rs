@@ -513,6 +513,12 @@ pub struct UiState {
     /// The Log panel's shown channel tab
     #[serde(default)]
     pub log_channel: crate::log_panel::LogChannel,
+    /// The selected Log lines (indices into the session log); not saved
+    #[serde(skip)]
+    pub log_selection: std::collections::BTreeSet<usize>,
+    /// The Log line a Shift+click extends from
+    #[serde(skip)]
+    pub log_anchor: Option<usize>,
 }
 
 impl UiState {
@@ -626,6 +632,8 @@ impl Default for UiState {
             bake_preset_name: String::new(),
             layout_dialog: None,
             log_channel: crate::log_panel::LogChannel::default(),
+            log_selection: Default::default(),
+            log_anchor: None,
         }
     }
 }

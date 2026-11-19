@@ -320,7 +320,7 @@ mod web {
         match app.session.to_project_bytes().map_err(|e| e.to_string()).and_then(|b| download(&name, &b)) {
             Ok(()) => {
                 app.session.modified = false;
-                app.session.log.push(format!("Saved {name}"));
+                app.session.log.info("Project", format!("Saved {name}"));
                 app.toast(trf("Downloaded {name}", &[("name", &name)]), false);
             }
             Err(e) => app.toast(trf("Couldn't save {name}: {error}", &[("name", &name), ("error", &e)]), true),
@@ -354,7 +354,7 @@ mod web {
     fn export(app: &mut TextureCraftApp, params: &Value, sets: &[usize]) -> Result<String, String> {
         let opts = texturecraft_engine::file_cmds::export_options(&app.session, params, "file.exportTextures").map_err(|e| e.to_string())?;
         let files = app.session.export_files(sets, &opts).map_err(|e| e.to_string())?;
-        app.session.log.extend(files.iter().flat_map(|f| f.warnings.iter().cloned()));
+        app.session.log.warnings("Exporter", files.iter().flat_map(|f| f.warnings.iter().cloned()));
         let name = match files.as_slice() {
             [] => return Err("the preset produced no files".into()),
             [f] => {
@@ -367,7 +367,7 @@ mod web {
                 name
             }
         };
-        app.session.log.push(format!("Exported {} textures ({name})", files.len()));
+        app.session.log.info("Exporter", format!("Exported {} textures ({name})", files.len()));
         Ok(name)
     }
 

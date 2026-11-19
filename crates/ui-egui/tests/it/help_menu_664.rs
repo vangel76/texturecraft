@@ -88,7 +88,7 @@ fn export_log_writes_every_line_with_time_and_level() {
     for (written, line) in lines[1..].iter().zip(&logged) {
         assert!(written.starts_with("[20"), "time first: {written}");
         assert!(written.contains("] INFO  "), "level: {written}");
-        assert!(written.ends_with(line.as_str()), "{written}");
+        assert!(written.ends_with(&line.line()), "{written}");
     }
     assert_eq!(lines.len(), logged.len() + 1);
     let _ = std::fs::remove_dir_all(&dir);

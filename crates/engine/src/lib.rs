@@ -27,6 +27,7 @@ pub mod layer_cmds;
 pub mod layer_ops;
 pub mod layer_selection;
 pub mod link_cmds;
+pub mod log;
 mod mask_bitmap;
 pub mod mask_cmds;
 pub mod mask_export;
