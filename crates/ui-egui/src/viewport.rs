@@ -785,6 +785,7 @@ fn view_3d(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, sync: &mut Pendin
     let (alt, shift, snap) = ui.input(|input| (input.modifiers.alt, input.modifiers.shift, input.modifiers.shift && input.modifiers.command));
     let local = |pointer: egui::Pos2| Vec2::new(pointer.x - rect.left(), pointer.y - rect.top());
     let adjusting = brush_drag(app, ui, &response);
+    let ctrl = ui.input(|input| input.modifiers.ctrl);
     let navigating = !adjusting && (alt || ui.input(|input| input.pointer.middle_down() || input.pointer.secondary_down()));
 
     // Navigation; S + drag moves the projection stencil instead, below
@@ -797,6 +798,10 @@ fn view_3d(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, sync: &mut Pendin
     if stencil_drag || adjusting {
         // The stencil or the brush changes instead of the camera
     } else if response.dragged_by(PointerButton::Middle) {
+        app.camera_glide = None;
+        app.session.camera.pan(delta.x / size.y, delta.y / size.y);
+    } else if alt && ctrl && response.dragged_by(PointerButton::Primary) {
+        // Ctrl+Alt+left is "Camera translate (alt.)": it pans like the middle button
         app.camera_glide = None;
         app.session.camera.pan(delta.x / size.y, delta.y / size.y);
     } else if alt && response.dragged_by(PointerButton::Primary) {
@@ -2495,7 +2500,7 @@ fn view_2d(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, sync: &mut Pendin
     mask_view_badge(app, ui, rect);
     axis_gizmo(ui, rect, app, Some(app.ui.uv_rotation));
     crate::nav_buttons::show(app, ui, rect, crate::nav_buttons::NavView::Uv);
-    if let Some(label) = hover_label(app, view_map, response.hover_pos()) {
+    if let Some(label) = hover_label(&app.session, app.ui.uv_tile_info, view_map, response.hover_pos()) {
         let label_position = rect.left_bottom() + vec2(SET_NAME_INSET.x, -SET_NAME_INSET.y);
         ui.painter().text(label_position, egui::Align2::LEFT_BOTTOM, label, egui::FontId::proportional(SET_NAME_TEXT_SIZE), tokens.viewport_text);
     }
@@ -2503,10 +2508,10 @@ fn view_2d(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, sync: &mut Pendin
 
 /// The label in the 2D view's bottom-left corner: the texture set and, in a UV tile set with tile info on, the tile under the cursor ("<set> - <tile>").
 /// A set that is not tiled shows its name alone.
-fn hover_label(app: &TextureCraftApp, view_map: crate::uv_view_map::UvViewMap, hover: Option<Pos2>) -> Option<String> {
-    let set = app.session.doc.project.texture_sets.get(app.session.ts())?;
+fn hover_label(session: &Session, tile_info: bool, view_map: crate::uv_view_map::UvViewMap, hover: Option<Pos2>) -> Option<String> {
+    let set = session.doc.project.texture_sets.get(session.ts())?;
     let tile = set.tile_grid().and_then(|grid| crate::uv_tile_grid::tile_under(view_map, set, grid, hover?));
-    hover_label_text(&set.name, set.tile_grid().is_some(), app.ui.uv_tile_info, tile)
+    hover_label_text(&set.name, set.tile_grid().is_some(), tile_info, tile)
 }
 
 /// [`hover_label`]'s text for a set called `name`: the name alone for a set that is not tiled, nothing in a tiled set with tile info off, else the name and the `tile` under the cursor
@@ -2659,6 +2664,25 @@ fn bake_paint_overlay(app: &TextureCraftApp, ui: &Ui, painter: &egui::Painter, t
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn the_hover_label_finds_the_tile_under_the_cursor_in_a_turned_view() {
+        let session = Session::new_project("Tiles", texturecraft_engine::geom::primitives::udim_plane(), "builtin:udim_plane", None, 128).unwrap();
+        let name = session.doc.project.texture_sets[0].name.clone();
+        let size = egui::vec2(800.0, 600.0);
+        let set = &session.doc.project.texture_sets[0];
+        for rotation in [0.0, 0.7, std::f32::consts::FRAC_PI_2] {
+            let scale = texturecraft_render::uv_view_scale(size.x / size.y, 1.0, set.size());
+            let map = crate::uv_view_map::UvViewMap { rect: Rect::from_min_size(Pos2::ZERO, size), scale, pan: [0.1, 0.0], rotation };
+
+            // The atlas is two tiles wide: 1001 is its left half, 1002 its right half
+            let left = map.to_screen(0.25, 0.5);
+            let right = map.to_screen(0.75, 0.5);
+            assert_eq!(hover_label(&session, true, map, Some(left)), Some(format!("{name} - 1001")), "{rotation}");
+            assert_eq!(hover_label(&session, true, map, Some(right)), Some(format!("{name} - 1002")), "{rotation}");
+            assert_eq!(hover_label(&session, false, map, Some(left)), None, "tile info off");
+        }
+    }
+
     #[test]
     fn the_axis_gizmo_points_along_the_texture_s_u_and_v_edges_at_any_rotation() {
         for rotation in [0.0, 0.6, std::f32::consts::FRAC_PI_2, 2.5, 4.0] {

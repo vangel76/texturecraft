@@ -249,3 +249,37 @@ fn painting_follows_the_turned_view() {
     drag(&mut harness, PointerButton::Primary, Modifiers::NONE, view.center(), vec2(30.0, 0.0));
     assert!(painted(&harness).1 > before, "a stroke on the turned texture still paints");
 }
+
+#[test]
+fn ctrl_alt_left_pans_the_3d_camera_and_neither_orbits_it_nor_adjusts_the_brush() {
+    let (mut harness, _) = app();
+    harness.state_mut().ui.layout = ViewLayout::Only3D;
+    harness.run_steps(4);
+    let view = harness.state().viewport_rect;
+    let (camera, brush) = (harness.state().session.camera, harness.state().session.tool.brush.clone());
+
+    // A real Ctrl press sets both `ctrl` and `command`
+    let ctrl = Modifiers { ctrl: true, command: true, ..Modifiers::NONE };
+    drag(&mut harness, PointerButton::Primary, Modifiers::ALT | ctrl, start(view), vec2(80.0, 30.0));
+
+    let after = harness.state().session.camera;
+    assert!(after.target != camera.target, "the camera panned");
+    assert_eq!((after.yaw, after.pitch, after.distance), (camera.yaw, camera.pitch, camera.distance), "no orbit, no zoom");
+    assert_eq!(harness.state().session.tool.brush, brush, "the brush is left alone");
+}
+
+#[test]
+fn f_in_baking_mode_resets_the_2d_view_that_baking_draws() {
+    let (mut harness, _) = app();
+    {
+        let ui = &mut harness.state_mut().ui;
+        (ui.uv_zoom, ui.uv_pan, ui.uv_rotation) = (7.0, [0.4, -0.3], 1.1);
+        ui.mode = texturecraft_ui_egui::state::Mode::Baking;
+    }
+    harness.run_steps(3);
+    press(&mut harness, Key::F);
+    harness.state_mut().ui.mode = texturecraft_ui_egui::state::Mode::Painting;
+    harness.run_steps(4);
+    let ui = &harness.state().ui;
+    assert_eq!((ui.uv_zoom, ui.uv_pan, ui.uv_rotation), (1.0, [0.0, 0.0], 0.0));
+}
