@@ -81,7 +81,7 @@ that closes it back onto the bar; the float is saved with the UI state.
   (default 35), Rotation; *Override environment map color space* with *Auto* greyed;
   *Environment Alignment* *World* or *Camera*: Camera turns the environment, and the key light
   with it, with the camera about the vertical axis, so the lighting stays with the view while
-  orbiting; Rendering mode follows it on the GPU tracer only), Shadows (*Shadows*; *Computation
+  orbiting; Rendering mode follows it on both tracers), Shadows (*Shadows*; *Computation
   mode* *Intensive*, *Average* or *Lightweight* (default) sets the shadow map to 4096, 3072 or
   2048 texels, and *Shadows opacity* 0-100 (default 100) says how dark the shadows are; both work
   only while *Shadows* is on) and Camera settings (*Preset* and *Restore* work on the saved cameras). The whole
@@ -90,10 +90,12 @@ that closes it back onto the bar; the float is saved with the UI state.
   Visualization settings (wireframes, the unlit switch) keep TextureCraft's own controls; the
   reference's other rows of those tabs are not copied. Colour management stays greyed.
 - **Settings > General > Background color:** two colour buttons (top and bottom) with an
-  eyedropper each, default #242425 at both ends; the plain background of the 3D and 2D views and
-  of Rendering mode behind the mesh at Environment Opacity 0 (a gradient when they differ).
+  eyedropper each, default #242425 at both ends; the plain background of the app's 3D and 2D views and
+  of Rendering mode behind the mesh at Environment Opacity 0 (a gradient when they differ). The
+  setting lives in the app: command-line and automation renders use the default #242425.
 - **View mode combo** (viewport headers and Display Settings, one list): italic non-selectable
-  titles *Lighting* (*Material*), *Single channel* (the channels, *Normal+height+mesh*) and
+  titles *Lighting* (*Material*), *Single channel* (every channel of the texture set, then *Normal+height+mesh*; the reference
+  lists five channels and probably follows the set's channels too, which was not tested) and
   *Mesh maps* (*Normal*, *World space normal*, *ID*, *Ambient occlusion*, *Curvature*,
   *Position*, *Thickness*, *Height*, *Bent normals*, *Opacity*), then *Other...*, an image picker
   (*Search...* pre-filled *u:image PRs*, *reset query to default*) that shows a project image. The
@@ -101,7 +103,8 @@ that closes it back onto the bar; the float is saved with the UI state.
   *Normal+height+mesh* too. *Display solo view without lighting (unlit)* sits in Display Settings
   (Visualization settings) and is on by default; off shades Base color, Metallic, Roughness, Normal and
   Height on a lit neutral material in the 3D view (the other channels stay flat). TextureCraft's
-  *UV checker* stays, under *Lighting*. The default query lists every image; other words narrow
+  *UV checker* stays, under *Lighting*. Bake mode keeps its own list (*Neutral Material*, *Material*, then *Mesh map: X*, no titles).
+  The default query lists every image; other words narrow
   the list by name.
 - **Shader Settings:** greyed *Undo*, *Redo* and *Instance name* (*Main shader*); the *open-pbr*
   button opens the shader choice with the reference's search (*u:shader*) and its 17 entries as

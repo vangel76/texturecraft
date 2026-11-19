@@ -159,3 +159,46 @@ fn display_settings_offers_the_unlit_switch_on_by_default() {
     h.run_steps(3);
     assert!(!h.state().session.doc.project.display.solo_unlit, "the switch turns the lighting on for channel views");
 }
+
+#[test]
+fn the_image_picker_starts_from_the_default_query_each_time_it_opens() {
+    let mut h = harness();
+    let name = h.state_mut().session.import_resource_bytes("stone.png", png()).unwrap();
+    h.run_steps(3);
+    open(&mut h, "Material");
+    pick(&mut h, "Other...");
+    let field = query_field(&h);
+    field.click();
+    field.type_text(" stone");
+    h.run_steps(3);
+    pick(&mut h, &name);
+    assert_eq!(h.state().session.view, ViewMode::Image);
+
+    open(&mut h, &name);
+    pick(&mut h, "Other...");
+    query_field(&h);
+}
+
+#[test]
+fn removing_the_shown_image_brings_the_material_back() {
+    let mut h = harness();
+    let name = h.state_mut().session.import_resource_bytes("stone.png", png()).unwrap();
+    h.state_mut().run("viewport.view", serde_json::json!({"mode": "image", "image": name}));
+    h.run_steps(3);
+    h.state_mut().run("resource.remove", serde_json::json!({"name": name}));
+    h.run_steps(3);
+    assert_eq!(h.state().session.view, ViewMode::Material);
+    picker(&h, "Material");
+}
+
+#[test]
+fn bake_mode_keeps_its_own_view_list() {
+    let mut h = harness();
+    h.state_mut().ui.mode = texturecraft_ui_egui::state::Mode::Baking;
+    h.run_steps(4);
+    open(&mut h, "Neutral Material");
+    h.get_by_label("Mesh map: Ambient Occlusion").scroll_to_me();
+    h.run_steps(3);
+    assert!(h.query_by_label("Mesh map: Ambient Occlusion").is_some(), "mesh maps keep their prefix in Bake mode");
+    assert!(h.query_by_label("Lighting").is_none() && h.query_by_label("Mesh maps").is_none(), "no section titles in Bake mode");
+}

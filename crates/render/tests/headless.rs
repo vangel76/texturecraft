@@ -163,6 +163,12 @@ fn the_plain_background_follows_the_chosen_colors() {
     assert!(top[0] > 100 && top[2] < 40, "the top shows the top color: {top:?}");
     assert!(bottom[2] > 100 && bottom[0] < 40, "the bottom shows the bottom color: {bottom:?}");
 
+    // The 2D view shows the same plain background
+    let uv = Frame { view_id: 2, kind: ViewKind::Uv { ts: 0, zoom: 0.3, pan: [0.0, 0.0] }, ..frame.clone() };
+    let uv_gradient = render(&mut h, &shaded(&uv, |s| s.background = [[0.5, 0.0, 0.0], [0.0, 0.0, 0.5]]), "background_uv_gradient");
+    let (top, bottom) = (uv_gradient.at(5, 5), uv_gradient.at(5, 354));
+    assert!(top[0] > 100 && bottom[2] > 100, "the 2D view follows the colors: {top:?} {bottom:?}");
+
     let environment = render(&mut h, &shaded(&frame, |s| s.env_opacity = 1.0), "background_environment");
     assert_ne!(environment.at(5, 5), plain.at(5, 5), "the environment replaces the plain color at Opacity 100");
 }

@@ -47,6 +47,9 @@ pub(crate) fn show(app: &mut TextureCraftApp, ui: &mut Ui, display: &mut Display
 
         let popup_id = ui.make_persistent_id("environment_picker");
         if slot.clicked() {
+            if !egui::Popup::is_id_open(ui.ctx(), popup_id) {
+                query_field::reset(ui.ctx(), popup_id.with("query"));
+            }
             egui::Popup::toggle_id(ui.ctx(), popup_id);
         }
         egui::Popup::from_response(&slot)

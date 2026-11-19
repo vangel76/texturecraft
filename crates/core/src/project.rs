@@ -290,7 +290,7 @@ impl EnvAlignment {
     }
 
     pub fn parse(id: &str) -> Option<EnvAlignment> {
-        Self::ALL.into_iter().find(|alignment| alignment.id() == id)
+        Self::ALL.into_iter().find(|alignment| alignment.id().eq_ignore_ascii_case(id))
     }
 }
 
@@ -323,7 +323,7 @@ impl ShadowMode {
     }
 
     pub fn parse(id: &str) -> Option<ShadowMode> {
-        Self::ALL.into_iter().find(|mode| mode.id() == id)
+        Self::ALL.into_iter().find(|mode| mode.id().eq_ignore_ascii_case(id))
     }
 
     /// Edge of the square shadow map, in texels

@@ -460,6 +460,30 @@ mod tests {
     }
 
     #[test]
+    fn the_image_view_falls_back_to_the_material_when_the_image_goes() {
+        let mut s = sphere_session();
+        let mut png = Vec::new();
+        let img = image::RgbaImage::from_pixel(2, 2, image::Rgba([9, 9, 9, 255]));
+        image::DynamicImage::ImageRgba8(img).write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+        let name = s.import_resource_bytes("stone.png", png).unwrap();
+        execute(&mut s, "viewport.view", &json!({"mode": "image", "image": name})).unwrap();
+        assert_eq!(s.view, ViewMode::Image);
+        execute(&mut s, "resource.remove", &json!({"name": name})).unwrap();
+        assert_eq!((s.view, s.view_image.as_deref()), (ViewMode::Material, None), "a removed image is no longer shown");
+    }
+
+    #[test]
+    fn display_set_accepts_the_names_it_reports_in_any_case() {
+        let mut s = sphere_session();
+        let r = execute(&mut s, "display.set", &json!({"alignment": "camera", "shadowMode": "Intensive"})).unwrap();
+        let (alignment, mode) = (r["env_alignment"].as_str().unwrap().to_owned(), r["shadow_mode"].as_str().unwrap().to_owned());
+        execute(&mut s, "display.set", &json!({"alignment": "World"})).unwrap();
+        execute(&mut s, "display.set", &json!({"alignment": alignment, "shadowMode": mode})).unwrap();
+        let d = &s.doc.project.display;
+        assert_eq!((d.env_alignment, d.shadow_mode), (EnvAlignment::Camera, ShadowMode::Intensive));
+    }
+
+    #[test]
     fn hdr_resources_become_the_environment() {
         let mut s = Session::new_project("t", texturecraft_geom::primitives::sphere(1.0, 16, 8), "builtin:sphere", None, 128).unwrap();
         assert!(execute(&mut s, "display.set", &json!({"environment": "resource:sky.hdr"})).is_err(), "unknown resources are rejected");

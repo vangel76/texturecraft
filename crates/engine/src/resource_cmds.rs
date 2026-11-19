@@ -116,6 +116,13 @@ impl Session {
                 Err(error) => self.log.push(format!("resource {name}: {error}")),
             }
         }
+
+        // The "Other..." view cannot show an image that is gone (removed or renamed): the material comes back
+        if self.view == crate::ViewMode::Image && !self.view_image.as_ref().is_some_and(|name| self.images.contains_key(name)) {
+            self.view = crate::ViewMode::Material;
+            self.view_image = None;
+            self.revision = self.revision.wrapping_add(1);
+        }
     }
 }
 

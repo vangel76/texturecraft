@@ -6,7 +6,7 @@ use texturecraft_engine::ViewMode;
 use texturecraft_engine::core::{BakedMap, Channel};
 
 use crate::TextureCraftApp;
-use crate::i18n::{n_, tr};
+use crate::i18n::{n_, tr, trf};
 use crate::query_field;
 use crate::shelf_preview::ShelfPreview;
 use crate::theme::Tokens;
@@ -64,6 +64,7 @@ pub(crate) fn show(app: &mut TextureCraftApp, child: &mut Ui, id_salt: &str, wid
     let neutral = baking && app.session.view == ViewMode::Material && app.ui.bake_visualization.neutral_shown;
     let label = match app.session.view {
         _ if neutral => tr("Neutral Material").to_owned(),
+        ViewMode::MeshMap(map) if baking => tr(crate::i18n::baked_map_label(map)).to_owned(),
         ViewMode::MeshMap(map) => tr(map_label(map)).to_owned(),
         ViewMode::Channel(channel) => tr(channel_label(channel)).to_owned(),
         ViewMode::Image => app.session.view_image.clone().unwrap_or_else(|| tr(OTHER).to_owned()),
@@ -76,7 +77,10 @@ pub(crate) fn show(app: &mut TextureCraftApp, child: &mut Ui, id_salt: &str, wid
     let combo = child
         .add_enabled_ui(project_open, |child| {
             egui::ComboBox::from_id_salt(id_salt).width(width).height(LIST_HEIGHT).selected_text(label).show_ui(child, |ui| {
-                section(ui, "Lighting");
+                // Bake mode keeps its own list: the material, then the mesh maps, without titles
+                if !baking {
+                    section(ui, "Lighting");
+                }
                 if baking && ui.selectable_label(neutral, tr("Neutral Material")).clicked() {
                     app.ui.bake_visualization.neutral_shown = true;
                     app.run("viewport.view", json!({"mode": "material"}));
@@ -91,20 +95,28 @@ pub(crate) fn show(app: &mut TextureCraftApp, child: &mut Ui, id_salt: &str, wid
                 if !project_open {
                     return;
                 }
-                if !baking && ui.selectable_label(app.session.view == ViewMode::UvChecker, tr("UV checker")).clicked() {
+                if baking {
+                    ui.separator();
+                    for map in BakedMap::ALL {
+                        let label = trf("Mesh map: {map}", &[("map", &tr(crate::i18n::baked_map_label(map)))]);
+                        if ui.selectable_label(app.session.view == ViewMode::MeshMap(map), label).clicked() {
+                            app.run("viewport.view", json!({"mode": format!("map:{}", map.id())}));
+                        }
+                    }
+                    return;
+                }
+                if ui.selectable_label(app.session.view == ViewMode::UvChecker, tr("UV checker")).clicked() {
                     app.run("viewport.view", json!({"mode": "uvChecker"}));
                 }
 
-                if !baking {
-                    section(ui, "Single channel");
-                    for channel in channels {
-                        if ui.selectable_label(app.session.view == ViewMode::Channel(channel), tr(channel_label(channel))).clicked() {
-                            app.run("viewport.view", json!({"mode": channel.id()}));
-                        }
+                section(ui, "Single channel");
+                for channel in channels {
+                    if ui.selectable_label(app.session.view == ViewMode::Channel(channel), tr(channel_label(channel))).clicked() {
+                        app.run("viewport.view", json!({"mode": channel.id()}));
                     }
-                    if ui.selectable_label(app.session.view == ViewMode::NormalHeightMesh, tr(texturecraft_engine::NORMAL_HEIGHT_MESH_LABEL)).clicked() {
-                        app.run("viewport.view", json!({"mode": "normalHeightMesh"}));
-                    }
+                }
+                if ui.selectable_label(app.session.view == ViewMode::NormalHeightMesh, tr(texturecraft_engine::NORMAL_HEIGHT_MESH_LABEL)).clicked() {
+                    app.run("viewport.view", json!({"mode": "normalHeightMesh"}));
                 }
 
                 section(ui, "Mesh maps");
@@ -113,7 +125,8 @@ pub(crate) fn show(app: &mut TextureCraftApp, child: &mut Ui, id_salt: &str, wid
                         app.run("viewport.view", json!({"mode": format!("map:{}", map.id())}));
                     }
                 }
-                if !baking && ui.selectable_label(app.session.view == ViewMode::Image, tr(OTHER)).clicked() {
+                if ui.selectable_label(app.session.view == ViewMode::Image, tr(OTHER)).clicked() {
+                    query_field::reset(ui.ctx(), popup_id.with("query"));
                     ui.data_mut(|data| data.insert_temp(popup_id, true));
                 }
             })

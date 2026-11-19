@@ -23,10 +23,18 @@ pub(crate) fn show(ui: &mut Ui, id: Id, default: &str) -> String {
     query
 }
 
-/// The words of `query` that narrow a list: the words of the default query only say what the list holds, so the default shows everything
+/// The words of `query` that narrow a list. The default query only says what the list holds, so
+/// it shows everything; text typed after it narrows the list, and a query that replaces it is
+/// all search words.
 pub(crate) fn words(query: &str, default: &str) -> Vec<String> {
-    let default: Vec<String> = default.split_whitespace().map(str::to_lowercase).collect();
-    query.split_whitespace().map(str::to_lowercase).filter(|word| !default.contains(word)).collect()
+    let query = query.trim();
+    let rest = query.strip_prefix(default.trim()).unwrap_or(query);
+    rest.split_whitespace().map(str::to_lowercase).collect()
+}
+
+/// Forgets the typed query, so the field starts from its default the next time
+pub(crate) fn reset(ctx: &egui::Context, id: Id) {
+    ctx.data_mut(|data| data.remove_temp::<String>(id));
 }
 
 /// Whether `name` holds every one of `words`
@@ -45,6 +53,8 @@ mod tests {
         assert!(words("environment ", "environment ").is_empty());
         assert_eq!(words("environment studio", "environment "), ["studio"]);
         assert_eq!(words("Stone", "u:image PRs"), ["stone"]);
+        assert_eq!(words("prs", "u:image PRs"), ["prs"], "a search word equal to a word of the default still searches");
+        assert_eq!(words("u:image PRs prs", "u:image PRs"), ["prs"]);
         assert!(matches(&words("environment studio", "environment "), "Studio 02"));
         assert!(!matches(&words("environment studio", "environment "), "Sunset"));
     }

@@ -47,7 +47,7 @@ pub struct TraceScene {
     pub env: Arc<EnvImage>,
     /// Environment rotation around +Y (radians), as in the viewport.
     pub env_rotation: f32,
-    /// The environment turns with the camera about the vertical axis (Environment Alignment: Camera). Only the GPU tracer follows the camera.
+    /// The environment turns with the camera about the vertical axis (Environment Alignment: Camera).
     pub env_camera: bool,
     /// Texture set per triangle (`usize::MAX`: none, default material).
     pub(crate) tri_set: Arc<Vec<usize>>,
@@ -337,6 +337,14 @@ impl Tracer {
     /// new sample then counts in [`Tracer::samples`]). Lets a single-threaded caller spread a
     /// pass over several frames.
     pub fn pass_rows(&mut self, scene: &TraceScene, cam: &OrbitCamera, settings: &TraceSettings, rows: u32) -> bool {
+        // Environment Alignment: Camera turns the environment with the camera
+        let aligned;
+        let scene = if scene.env_camera {
+            aligned = TraceScene { env_rotation: scene.env_rotation + crate::renderer::camera_yaw(cam), ..scene.clone() };
+            &aligned
+        } else {
+            scene
+        };
         let (w, h, pass) = (self.width, self.height, self.samples);
         let aspect = w as f32 / h as f32;
         let (y0, y1) = (self.row, self.row.saturating_add(rows.max(1)).min(h));
@@ -1103,6 +1111,25 @@ mod tests {
         let corner: u32 = px(0, 0).iter().map(|v| *v as u32).sum();
         assert!(center > corner + 60, "center {center} corner {corner}");
         assert!(tr.acc.iter().all(|p| p.hit.is_finite() && p.env.is_finite()));
+    }
+
+    #[test]
+    fn the_cpu_tracer_turns_the_environment_with_the_camera_when_aligned_to_it() {
+        // The environment shows as the background, so the whole image follows its turn
+        let view = |camera_aligned: bool, yaw: f32| {
+            let mut s = scene("Sunset");
+            s.env_camera = camera_aligned;
+            let mut cam = camera();
+            cam.set_angles(yaw, 0.0);
+            let mut tr = Tracer::new(24, 12);
+            tr.pass(&s, &cam, &TraceSettings::default());
+            tr.rgba8(&TraceDisplay { exposure: 1.0, aces: true, env_opacity: 1.0, denoise: false, background: crate::DEFAULT_BACKGROUND })
+        };
+        let difference = |a: &[u8], b: &[u8]| a.iter().zip(b).map(|(x, y)| x.abs_diff(*y) as f32).sum::<f32>() / a.len() as f32;
+        let world = difference(&view(false, 0.0), &view(false, 1.8));
+        let camera_aligned = difference(&view(true, 0.0), &view(true, 1.8));
+        assert!(world > 3.0, "World: the environment stays put ({world})");
+        assert!(camera_aligned < world / 3.0, "Camera: the environment turns with the view ({camera_aligned} against {world})");
     }
 
     #[test]

@@ -226,3 +226,20 @@ fn the_shadow_quality_rows_work_only_while_shadows_are_on() {
     let opacity = display(&h).shadow_opacity;
     assert!(opacity < 0.9, "the slider sets the opacity: {opacity}");
 }
+
+#[test]
+fn the_environment_picker_starts_from_the_default_query_each_time_it_opens() {
+    let mut h = app();
+    h.get_by_role_and_label(Role::Button, "Studio Soft").click();
+    h.run_steps(SETTLE);
+    let field = h.get_all_by_role(Role::TextInput).find(|node| node.value().as_deref() == Some("environment ")).unwrap();
+    field.click();
+    field.type_text("sun");
+    h.run_steps(SETTLE);
+    h.get_by_role_and_label(Role::Button, "Sunset").click();
+    h.run_steps(SETTLE);
+
+    h.get_by_role_and_label(Role::Button, "Sunset").click();
+    h.run_steps(SETTLE);
+    assert!(h.get_all_by_role(Role::TextInput).any(|node| node.value().as_deref() == Some("environment ")), "the query is the reference's default again");
+}
