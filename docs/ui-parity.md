@@ -212,7 +212,9 @@ Free rotation uses the same Alt+left drag (and right drag) as the constrained on
   ("Override(s) active"). The header menu has *Enable override for all items* and *Disable
   override for all items*. The template list leaves out the entries the reference leaves out
   there; sizes read "128x128" ... "8192x8192". Export, the footer count and LIST OF EXPORTS use
-  each set's own settings.
+  each set's own settings. Ticks and overrides belong to the project and follow each texture set
+  by name (another project starts without them); renaming a template on OUTPUT TEMPLATES takes
+  the overrides that use it along, removing it drops them.
 - **Output maps** ([#670](https://github.com/storytold/texturecraft/issues/670)): below the
   parameters, one row per map the set exports: a tick, the file name pattern (cut at the front
   with "…" when long, the whole pattern as tooltip), its own *Enable override* and the inherited
