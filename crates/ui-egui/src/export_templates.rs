@@ -648,6 +648,11 @@ fn commit(app: &mut TextureCraftApp, preset: ExportPreset) {
 fn preview_names(app: &mut TextureCraftApp, preset: &ExportPreset) -> Result<Vec<Option<String>>, String> {
     let mut p = crate::export_window::set_params(app, app.session.ts());
     p["preset"] = serde_json::to_value(preset).map_err(|e| e.to_string())?;
+
+    // The set's own output map settings belong to its template, not to the one shown here
+    if let Some(p) = p.as_object_mut() {
+        p.remove("maps");
+    }
     let plan = texturecraft_engine::execute(&mut app.session, "export.plan", &p).map_err(|e| e.to_string())?;
     let mut names = vec![None; preset.maps.len()];
     for f in plan.as_array().into_iter().flatten() {

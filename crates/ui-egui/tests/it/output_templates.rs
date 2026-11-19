@@ -134,3 +134,24 @@ fn f2_renames_the_selected_template_and_leaves_the_views_alone() {
     assert_eq!(h.state().ui.export.renaming.as_deref(), Some("Mine"));
     assert_eq!(h.state().ui.layout, layout, "F2 does not switch to the 3D view here");
 }
+
+#[test]
+fn the_preview_ignores_a_texture_sets_output_map_settings() {
+    let library = Library::new("preview");
+    let mut h = harness(&library);
+
+    // A two-map template on show, while the current texture set unticks map 2 of its own three-map template
+    let mut two = h.state().session.export_preset("Mine").unwrap();
+    two.name = "Two".into();
+    two.maps.truncate(2);
+    h.state_mut().run("export.preset.save", json!({ "preset": two })).unwrap();
+    let own = "Unreal Engine (Packed)".to_string();
+    let mut o = texturecraft_ui_egui::state::SetExport { preset: Some(own.clone()), maps_template: own, ..Default::default() };
+    o.maps.insert(2, texturecraft_ui_egui::state::MapExport { enabled: false, file_type: None });
+    let ts = h.state().session.ts();
+    h.state_mut().ui.export.sets.insert(ts, o);
+    h.state_mut().ui.export.preset = "Two".into();
+    h.run_steps(4);
+    assert!(h.query_by_label_contains("Not saved").is_none(), "the preview plans the template on show");
+    assert!(h.query_all_by_label_contains(egui_phosphor::regular::ARROW_RIGHT).count() >= 2, "both maps show their files");
+}
