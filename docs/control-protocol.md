@@ -44,7 +44,11 @@ grayscale image (the whole tile atlas for a UV-tiled set).
 map of the template (`map` is its index in the template's maps) its own file type and bit depth,
 which win over the export's `format` and `bitDepth`, or `enabled: false` to leave it out. A
 left-out map keeps its file name reserved, so the other maps keep theirs. The Export textures
-window's Output maps rows send it.
+window's Output maps rows send it. `format` takes the export window's names (`bmp`, `jpeg`, `jng`,
+`pgm`, `png`, `targa`, `tiff`, `hdr`, `exr`, `webp`, `psd`) or the extensions; `bitDepth` 32 is
+float for TIFF, EXR and HDR. `dithering: true` (also per map) dithers 8-bit integer files with
+an ordered pattern; `export.plan` reports it per file. `padding: "diffusion"` dilates `dilation`
+texels, then fills the rest with a smooth blend of the island colours.
 
 `effect.set {effect, filter: "blur", radius: 5}` replaces a filter in place, preserving its
 stack position, blend, opacity and visibility. Replacement filters start from defaults plus

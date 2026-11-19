@@ -186,7 +186,7 @@ Free rotation uses the same Alt+left drag (and right drag) as the constrained on
 
 ## Export textures window (batch 3, 2026-11-19)
 
-**UI + tests** (`crates/ui-egui/tests/it/export_settings.rs`, `export_overrides.rs`, `export_map_overrides.rs`; code in
+**UI + tests** (`crates/ui-egui/tests/it/export_settings.rs`, `export_overrides.rs`, `export_map_overrides.rs`, `export_file_types.rs`; code in
 [`export_window.rs`](../crates/ui-egui/src/export_window.rs)).
 
 - **SETTINGS** ([#671](https://github.com/storytold/texturecraft/issues/671)): the texture set
@@ -220,3 +220,11 @@ Free rotation uses the same Alt+left drag (and right drag) as the constrained on
   `file.exportTextures`). The header menu has *Check all*, *Uncheck all*, *Invert all*, *Enable
   override for all items* and *Disable override for all items*; *Include all* ticks every map
   again. The patterns are cut after 26 characters (the reference cuts by pixel width).
+- **File types** ([#672](https://github.com/storytold/texturecraft/issues/672)): File type
+  lists bmp, jpeg, jng, pgm, png, targa, tiff, hdr, exr, j2k, jp2, webp, psd and sbsar; j2k, jp2
+  and sbsar are greyed with "Not available yet" (TextureCraft has no writer for them). The bit
+  depth list follows the type: "8 bits" and "8 bits + dithering" everywhere, "16 bits" for pgm,
+  png, psd and tiff, "32f bits" for tiff and hdr (hdr only that, greyed), "16f bits" and "32f
+  bits" for exr; empty and greyed for "Based on output template". Padding adds "Dilation +
+  diffusion" with a dilation width. PGM writes colour maps as their luminance; PSD holds the
+  merged image without layers.

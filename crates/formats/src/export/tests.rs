@@ -321,7 +321,9 @@ fn every_format_encodes_and_decodes() {
     };
     let mut preset = builtin_preset("glTF PBR Metal Roughness").unwrap();
     preset.maps.push(gray_alpha);
-    for format in FileFormat::ALL {
+
+    // JNG, PGM and PSD have tests of their own (the image crate reads none of them)
+    for format in FileFormat::ALL.into_iter().filter(|f| !matches!(f, FileFormat::Jng | FileFormat::Pgm | FileFormat::Psd)) {
         for &depth in format.bit_depths() {
             let mut opts = ExportOptions::new(preset.clone());
             opts.format_override = Some(format);
@@ -700,13 +702,13 @@ fn a_chosen_colour_space_is_embedded_as_an_icc_profile() {
 
             for space in ColorSpace::ALL {
                 let mut warnings = Vec::new();
-                let bytes = encode(format, depth, (8, 8), 3, &data, &[false; 3], Some(space), &mut warnings).unwrap();
+                let bytes = encode(Encoding { format, depth, dither: false }, (8, 8), 3, &data, &[false; 3], Some(space), &mut warnings).unwrap();
                 assert_eq!(embedded_icc(format, &bytes), crate::icc::profile(space), "{format:?} {depth}-bit {space:?}");
                 assert!(warnings.is_empty(), "{warnings:?}");
             }
 
             // No colour space chosen (a data map, or the default): nothing is embedded
-            let bytes = encode(format, depth, (8, 8), 3, &data, &[false; 3], None, &mut Vec::new()).unwrap();
+            let bytes = encode(Encoding { format, depth, dither: false }, (8, 8), 3, &data, &[false; 3], None, &mut Vec::new()).unwrap();
             assert_eq!(embedded_icc(format, &bytes), None, "{format:?} {depth}-bit");
         }
     }
@@ -719,9 +721,13 @@ fn exr_carries_the_chromaticities_of_the_space() {
         let meta = exr::meta::MetaData::read_from_buffered(Cursor::new(bytes), false).unwrap();
         meta.headers[0].shared_attributes.chromaticities
     };
-    assert!(read(&encode(FileFormat::Exr, 16, (4, 4), 3, &data, &[false; 3], None, &mut Vec::new()).unwrap()).is_none());
+    assert!(
+        read(&encode(Encoding { format: FileFormat::Exr, depth: 16, dither: false }, (4, 4), 3, &data, &[false; 3], None, &mut Vec::new()).unwrap()).is_none()
+    );
     for space in ColorSpace::ALL {
-        let c = read(&encode(FileFormat::Exr, 32, (4, 4), 3, &data, &[false; 3], Some(space), &mut Vec::new()).unwrap()).unwrap_or_else(|| panic!("{space:?}"));
+        let c =
+            read(&encode(Encoding { format: FileFormat::Exr, depth: 32, dither: false }, (4, 4), 3, &data, &[false; 3], Some(space), &mut Vec::new()).unwrap())
+                .unwrap_or_else(|| panic!("{space:?}"));
         let [r, g, b, w] = space.chromaticities();
         for (got, want) in [(c.red, r), (c.green, g), (c.blue, b), (c.white, w)] {
             assert!((f64::from(got.0) - want[0]).abs() < 1e-5 && (f64::from(got.1) - want[1]).abs() < 1e-5, "{space:?}: {got:?} vs {want:?}");
@@ -734,10 +740,10 @@ fn formats_without_a_place_for_a_colour_space_say_so() {
     let data = vec![0.25f32; 4 * 4 * 3];
     for format in [FileFormat::Tga, FileFormat::Bmp, FileFormat::Hdr] {
         let mut warnings = Vec::new();
-        encode(format, 8, (4, 4), 3, &data, &[false; 3], Some(ColorSpace::AcesCg), &mut warnings).unwrap();
+        encode(Encoding { format, depth: 8, dither: false }, (4, 4), 3, &data, &[false; 3], Some(ColorSpace::AcesCg), &mut warnings).unwrap();
         assert!(warnings.iter().any(|w| w.contains("colour space") && w.contains("ACEScg")), "{format:?}: {warnings:?}");
         let mut quiet = Vec::new();
-        encode(format, 8, (4, 4), 3, &data, &[false; 3], None, &mut quiet).unwrap();
+        encode(Encoding { format, depth: 8, dither: false }, (4, 4), 3, &data, &[false; 3], None, &mut quiet).unwrap();
         assert!(quiet.is_empty(), "{format:?}: nothing to say without a chosen space: {quiet:?}");
     }
 }
@@ -865,4 +871,170 @@ fn the_default_template_keeps_its_old_name_and_file_types_their_listed_names() {
     }
     assert_eq!(FileFormat::Tga.name(), "targa");
     assert_eq!(FileFormat::Jpeg.name(), "jpeg");
+}
+
+/// One-map preset: `channels` written as `format` at `depth`
+fn one_map(format: FileFormat, depth: u8, channels: Vec<(Dest, SourceRef)>) -> ExportOptions {
+    ExportOptions::new(ExportPreset { name: "t".into(), maps: vec![MapSpec { file: "out".into(), format, bit_depth: depth, channels, inverted: Vec::new() }] })
+}
+
+fn rgba_half_alpha() -> Vec<(Dest, SourceRef)> {
+    let c = |k| SourceRef::Channel { channel: Channel::BaseColor, component: k };
+    vec![(Dest::R, c(0)), (Dest::G, c(1)), (Dest::B, c(2)), (Dest::A, SourceRef::Constant(0.5))]
+}
+
+fn roughness() -> Vec<(Dest, SourceRef)> {
+    vec![(Dest::L, SourceRef::Channel { channel: Channel::Roughness, component: 0 })]
+}
+
+#[test]
+fn the_new_file_types_have_the_reference_bit_depths() {
+    assert_eq!(FileFormat::Tiff.bit_depths(), &[8, 16, 32]);
+    for f in [FileFormat::Png, FileFormat::Pgm, FileFormat::Psd] {
+        assert_eq!(f.bit_depths(), &[8, 16], "{f:?}");
+    }
+    for f in [FileFormat::Bmp, FileFormat::Jpeg, FileFormat::Jng, FileFormat::Tga, FileFormat::Webp] {
+        assert_eq!(f.bit_depths(), &[8], "{f:?}");
+    }
+    assert_eq!((FileFormat::Exr.default_depth(), FileFormat::Hdr.default_depth(), FileFormat::Psd.default_depth()), (32, 32, 8));
+    assert!(FileFormat::Tiff.holds_float(32) && !FileFormat::Tiff.holds_float(16));
+}
+
+#[test]
+fn pgm_is_a_binary_graymap() {
+    let fx = Fx::new(&default_channels());
+    let files = fx.render(&one_map(FileFormat::Pgm, 16, roughness()));
+    let f = find(&files, "out.pgm");
+    let header = b"P5\n64 64\n65535\n";
+    assert!(f.bytes.starts_with(header));
+    assert_eq!(f.bytes.len(), header.len() + 64 * 64 * 2);
+    let first = u16::from_be_bytes([f.bytes[header.len()], f.bytes[header.len() + 1]]);
+    assert!((i32::from(first) - 16384).abs() <= 2, "roughness 0.25: {first}");
+
+    // Colour becomes its luminance, with a warning
+    let files = fx.render(&one_map(FileFormat::Pgm, 8, rgba_half_alpha()));
+    let f = find(&files, "out.pgm");
+    assert!(f.bytes.starts_with(b"P5\n64 64\n255\n") && f.warnings.iter().any(|w| w.contains("luminance")), "{:?}", f.warnings);
+}
+
+#[test]
+fn psd_holds_the_merged_image_planar() {
+    let fx = Fx::new(&default_channels());
+    let f = &fx.render(&one_map(FileFormat::Psd, 8, rgba_half_alpha()))[0];
+    let b = &f.bytes;
+    assert_eq!(&b[0..4], b"8BPS");
+    assert_eq!(u16::from_be_bytes([b[12], b[13]]), 4, "channels");
+    assert_eq!((u32::from_be_bytes(b[14..18].try_into().unwrap()), u32::from_be_bytes(b[18..22].try_into().unwrap())), (64, 64));
+    assert_eq!((u16::from_be_bytes([b[22], b[23]]), u16::from_be_bytes([b[24], b[25]])), (8, 3), "8-bit RGB");
+    let data = 26 + 12 + 2;
+    assert_eq!(b.len(), data + 4 * 64 * 64);
+    let plane = |c: usize| &b[data + c * 64 * 64..data + (c + 1) * 64 * 64];
+    assert!(plane(3).iter().all(|a| *a == 128), "alpha plane");
+    let png = decode(&fx.render(&one_map(FileFormat::Png, 8, rgba_half_alpha()))[0]).to_rgba8();
+    assert_eq!(plane(0)[64 * 10 + 40], png.get_pixel(40, 10)[0], "the red plane holds the same values as a PNG");
+
+    let f16 = &fx.render(&one_map(FileFormat::Psd, 16, roughness()))[0];
+    assert_eq!((u16::from_be_bytes([f16.bytes[12], f16.bytes[13]]), u16::from_be_bytes([f16.bytes[22], f16.bytes[23]])), (1, 16));
+    assert_eq!(f16.bytes.len(), data + 2 * 64 * 64);
+}
+
+#[test]
+fn jng_has_jpeg_colour_and_lossless_alpha() {
+    use std::io::Read;
+    let fx = Fx::new(&default_channels());
+    let f = &fx.render(&one_map(FileFormat::Jng, 8, rgba_half_alpha()))[0];
+    assert!(f.name.ends_with(".jng"));
+    let b = &f.bytes;
+    assert_eq!(&b[0..8], &[0x8B, b'J', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]);
+
+    // Walk the chunks, checking each CRC
+    let mut at = 8;
+    let mut chunks = Vec::new();
+    while at < b.len() {
+        let len = u32::from_be_bytes(b[at..at + 4].try_into().unwrap()) as usize;
+        let kind = &b[at + 4..at + 8];
+        let data = &b[at + 8..at + 8 + len];
+        let mut crc = flate2::Crc::new();
+        crc.update(kind);
+        crc.update(data);
+        assert_eq!(crc.sum(), u32::from_be_bytes(b[at + 8 + len..at + 12 + len].try_into().unwrap()), "{}", String::from_utf8_lossy(kind));
+        chunks.push((String::from_utf8_lossy(kind).into_owned(), data.to_vec()));
+        at += 12 + len;
+    }
+    let names: Vec<&str> = chunks.iter().map(|(k, _)| k.as_str()).collect();
+    assert_eq!(names, ["JHDR", "IDAT", "JDAT", "IEND"]);
+    let jhdr = &chunks[0].1;
+    assert_eq!(&jhdr[8..], &[14, 8, 8, 0, 8, 0, 0, 0], "colour + alpha, 8-bit JPEG, 8-bit deflate alpha");
+    let jpeg = image::load_from_memory_with_format(&chunks[2].1, ImageFormat::Jpeg).unwrap();
+    assert_eq!(jpeg.dimensions(), (64, 64));
+    let mut alpha = Vec::new();
+    flate2::read::ZlibDecoder::new(&chunks[1].1[..]).read_to_end(&mut alpha).unwrap();
+    assert_eq!(alpha.len(), 64 * 65);
+    assert!(alpha.chunks(65).all(|row| row[0] == 0 && row[1..].iter().all(|a| *a == 128)));
+
+    // Gray without alpha: no alpha chunk
+    let gray = &fx.render(&one_map(FileFormat::Jng, 8, roughness()))[0];
+    assert_eq!(gray.bytes[8 + 8 + 8], 8, "gray colour type");
+    assert!(!gray.bytes.windows(4).any(|w| w == b"IDAT"));
+}
+
+#[test]
+fn tiff_32f_holds_linear_floats() {
+    let fx = Fx::new(&default_channels());
+    let f = &fx.render(&one_map(FileFormat::Tiff, 32, roughness()))[0];
+    let img = decode(f).to_rgb32f();
+    assert!((img.get_pixel(5, 5)[0] - 0.25).abs() < 1e-3, "{:?}", img.get_pixel(5, 5));
+    let colour = &fx.render(&one_map(FileFormat::Tiff, 32, rgba_half_alpha()))[0];
+    let img = decode(colour).to_rgba32f();
+    let v = fx.comp.value(Channel::BaseColor, 40, 10);
+    assert!((img.get_pixel(40, 10)[0] - v[0]).abs() < 1e-3, "colour stays linear: {:?} vs {v:?}", img.get_pixel(40, 10));
+}
+
+#[test]
+fn dithering_is_ordered_and_keeps_the_average() {
+    let fx = Fx::new(&default_channels());
+    let plain = one_map(FileFormat::Png, 8, rgba_half_alpha());
+    let dithered = ExportOptions { dither: true, ..plain.clone() };
+    let a = decode(&fx.render(&plain)[0]).to_rgba8();
+    let b = decode(&fx.render(&dithered)[0]).to_rgba8();
+    assert_ne!(a, b);
+    assert_eq!(b, decode(&fx.render(&dithered)[0]).to_rgba8(), "the same pattern on every export");
+    let mean = |img: &image::RgbaImage| img.pixels().map(|p| f64::from(p[0])).sum::<f64>() / 4096.0;
+    assert!((mean(&a) - mean(&b)).abs() < 0.6, "{} vs {}", mean(&a), mean(&b));
+
+    // A map's own setting wins, and 16-bit files are never dithered
+    let mut own = dithered.clone();
+    own.maps.insert(0, MapOverride { dither: Some(false), ..MapOverride::default() });
+    assert_eq!(decode(&fx.render(&own)[0]).to_rgba8(), a);
+    let wide = ExportOptions { bit_depth_override: Some(16), ..dithered.clone() };
+    assert!(list_outputs(&fx.project, 0, "sphere", &wide).unwrap().iter().all(|p| !p.dither));
+}
+
+#[test]
+fn diffusion_padding_fills_beyond_the_dilation_smoothly() {
+    let mut fx = Fx::new(&default_channels());
+    fx.set_all(Channel::Roughness, |x, y| [if y < 32 { 0.2 } else { 0.8 } + 0.0 * x as f32; 3]);
+    fx.coverage = (0..RES * RES).map(|i| i % RES < 16).collect();
+    let mut dil = one_map(FileFormat::Png, 16, roughness());
+    dil.padding = Padding::Dilation(2);
+    let mut dif = dil.clone();
+    dif.padding = Padding::DilationDiffusion(2);
+    let a = decode(&fx.render(&dil)[0]).to_luma16();
+    let b = decode(&fx.render(&dif)[0]).to_luma16();
+    for y in [0, 20, 40, 63] {
+        for x in 0..18 {
+            assert_eq!(a.get_pixel(x, y), b.get_pixel(x, y), "islands and the dilated ring are unchanged at ({x},{y})");
+        }
+        assert_eq!(a.get_pixel(40, y)[0], 0, "plain dilation leaves the rest empty");
+    }
+
+    // Beyond the ring every texel takes a blend of the island colours: next to it its own
+    // row's colour, far away their mix
+    let v = |x, y| f32::from(b.get_pixel(x, y)[0]) / 65535.0;
+    assert!(v(19, 2) < 0.35 && v(19, 61) > 0.65, "{} {}", v(19, 2), v(19, 61));
+    for y in 0..64 {
+        for x in 18..64 {
+            assert!((0.19..=0.81).contains(&v(x, y)), "({x},{y}) {}", v(x, y));
+        }
+    }
 }

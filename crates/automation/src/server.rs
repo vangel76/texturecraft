@@ -152,7 +152,7 @@ pub struct ExportParams {
     /// File format override: png, jpg, tga, tif, exr, …
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub format: Option<String>,
-    /// none | dilation | dilationDefault | infinite
+    /// none | dilation | dilationDefault | diffusion | infinite
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub padding: Option<String>,
     /// Output size in pixels (power of two).

@@ -10,7 +10,7 @@ use texturecraft_engine::formats::{ExportPreset, FileFormat};
 use crate::TextureCraftApp;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::file_dialogs::{Bound, FileDialog};
-use crate::i18n::{tr, trf};
+use crate::i18n::{n_, tr, trf};
 use crate::state::{ExportUi, FileType, MapExport, SIZE_OF_LARGEST_SET, SetExport};
 use crate::theme::{Tokens, caption};
 use crate::unavailable::NOT_AVAILABLE;
@@ -42,16 +42,97 @@ const FIRST_GROUP: [&str; 7] = [
 /// First-group templates a texture set cannot override to (the reference leaves them out there)
 const NOT_PER_SET: [&str; 4] = ["Sketchfab", "USDz (Apple AR)", "glTF PBR Metal Roughness", "glTF PBR Metal Roughness + Displacement texture (experimental)"];
 
-/// The file types of the File type list, in the reference order
-pub(crate) const FILE_TYPES: [FileFormat; 8] =
-    [FileFormat::Bmp, FileFormat::Jpeg, FileFormat::Png, FileFormat::Tga, FileFormat::Tiff, FileFormat::Hdr, FileFormat::Exr, FileFormat::Webp];
+/// The File type list in the reference order: (name, the format; None for the ones TextureCraft
+/// cannot write yet, listed greyed)
+pub(crate) const FILE_TYPES: [(&str, Option<FileFormat>); 14] = [
+    ("bmp", Some(FileFormat::Bmp)),
+    ("jpeg", Some(FileFormat::Jpeg)),
+    ("jng", Some(FileFormat::Jng)),
+    ("pgm", Some(FileFormat::Pgm)),
+    ("png", Some(FileFormat::Png)),
+    ("targa", Some(FileFormat::Tga)),
+    ("tiff", Some(FileFormat::Tiff)),
+    ("hdr", Some(FileFormat::Hdr)),
+    ("exr", Some(FileFormat::Exr)),
+    ("j2k", None),
+    ("jp2", None),
+    ("webp", Some(FileFormat::Webp)),
+    ("psd", Some(FileFormat::Psd)),
+    ("sbsar", None),
+];
+
+/// The bit depths `format` is written with, as the bit depth list offers them: (bits,
+/// dithering)
+fn depth_options(format: FileFormat) -> Vec<(u8, bool)> {
+    format.bit_depths().iter().flat_map(|&d| if d == 8 && !format.holds_float(8) { vec![(8, false), (8, true)] } else { vec![(d, false)] }).collect()
+}
+
+/// A bit depth as listed: "8 bits", "8 bits + dithering", "16 bits", "16f bits", "32f bits"
+fn depth_label(format: Option<FileFormat>, bit_depth: u8, dithering: bool) -> String {
+    match (bit_depth, dithering) {
+        (8, true) => tr("8 bits + dithering").to_string(),
+        (16, _) if format == Some(FileFormat::Exr) => tr("16f bits").to_string(),
+        (32, _) => tr("32f bits").to_string(),
+        (n, _) => trf("{n} bits", &[("n", &n)]),
+    }
+}
+
+/// A file type list and its bit depth list; `from_template` adds "Based on output template"
+/// (an empty `format`), which leaves the bit depth to the template.
+fn file_type_lists(ui: &mut Ui, id: (&str, usize, usize), from_template: bool, format: &mut String, bit_depth: &mut u8, dithering: &mut bool) {
+    let parsed = FileFormat::from_extension(format);
+
+    // A depth the type does not have (or none) becomes its default
+    if let Some(f) = parsed
+        && !depth_options(f).contains(&(*bit_depth, *dithering))
+    {
+        (*bit_depth, *dithering) = (f.default_depth(), false);
+    }
+    let shown = if format.is_empty() { tr("Based on output template").to_string() } else { file_type_name(format) };
+    // Tall enough for the whole list
+    let list = egui::ComboBox::from_id_salt(("type", id)).width(if from_template { 166.0 } else { 90.0 }).height(f32::INFINITY);
+    list.selected_text(shown).show_ui(ui, |ui| {
+        if from_template {
+            if ui.selectable_label(format.is_empty(), tr("Based on output template")).clicked() {
+                format.clear();
+                (*bit_depth, *dithering) = (0, false);
+            }
+            ui.separator();
+        }
+        for (name, f) in FILE_TYPES {
+            match f {
+                Some(f) => {
+                    if ui.selectable_label(file_type_name(format) == name, name).clicked() && file_type_name(format) != name {
+                        *format = name.to_string();
+                        (*bit_depth, *dithering) = (f.default_depth(), false);
+                    }
+                }
+                None => {
+                    ui.add_enabled(false, egui::Button::selectable(false, name)).on_disabled_hover_text(tr(NOT_AVAILABLE));
+                }
+            }
+        }
+    });
+    let options = parsed.map(depth_options).unwrap_or_default();
+    let shown = if parsed.is_some() { depth_label(parsed, *bit_depth, *dithering) } else { String::new() };
+    ui.add_enabled_ui(options.len() > 1, |ui| {
+        egui::ComboBox::from_id_salt(("bits", id)).width(if from_template { 160.0 } else { 120.0 }).selected_text(shown).show_ui(ui, |ui| {
+            for (d, dither) in options {
+                if ui.selectable_label((*bit_depth, *dithering) == (d, dither), depth_label(parsed, d, dither)).clicked() {
+                    (*bit_depth, *dithering) = (d, dither);
+                }
+            }
+        });
+    });
+}
 
 /// The padding types, in the reference order: (`file.exportTextures` value, label)
-pub(crate) const PADDINGS: [(&str, &str); 4] = [
-    ("none", "No padding (passthrough)"),
-    ("infinite", "Dilation infinite"),
-    ("dilation", "Dilation + transparent"),
-    ("dilationDefault", "Dilation + default background color"),
+pub(crate) const PADDINGS: [(&str, &str); 5] = [
+    ("none", n_("No padding (passthrough)")),
+    ("infinite", n_("Dilation infinite")),
+    ("dilation", n_("Dilation + transparent")),
+    ("dilationDefault", n_("Dilation + default background color")),
+    ("diffusion", n_("Dilation + diffusion")),
 ];
 
 pub(crate) fn padding_label(padding: &str) -> &'static str {
@@ -60,7 +141,7 @@ pub(crate) fn padding_label(padding: &str) -> &'static str {
 
 /// Paddings with a width: the others ignore the dilation
 pub(crate) fn has_width(padding: &str) -> bool {
-    matches!(padding, "dilation" | "dilationDefault")
+    matches!(padding, "dilation" | "dilationDefault" | "diffusion")
 }
 
 /// The name a stored file type is listed under ("" when the template decides)
@@ -112,11 +193,6 @@ fn set_size_label(size: u32, own: u32) -> String {
     if size == own { trf("{n}x{n} (Texture Set size)", &[("n", &size)]) } else { format!("{size}x{size}") }
 }
 
-/// The bit depth a file type is written with, as listed
-fn bits_label(bit_depth: u8) -> String {
-    trf("{n} bits", &[("n", &bit_depth)])
-}
-
 /// The largest texture set's resolution
 fn largest_set(app: &TextureCraftApp) -> u32 {
     app.session.doc.project.texture_sets.iter().map(|t| t.block_resolution()).max().unwrap_or(1024)
@@ -160,6 +236,7 @@ pub(crate) fn export_params(app: &TextureCraftApp) -> serde_json::Value {
     }
     if e.bit_depth > 0 {
         p["bitDepth"] = json!(e.bit_depth);
+        p["dithering"] = json!(e.dithering);
     }
     match e.size {
         0 => {}
@@ -186,6 +263,7 @@ pub(crate) fn set_params(app: &TextureCraftApp, ts: usize) -> serde_json::Value 
     if let Some(t) = &o.file_type {
         p["format"] = json!(t.format);
         p["bitDepth"] = json!(t.bit_depth);
+        p["dithering"] = json!(t.dithering);
     }
     if let Some(size) = o.size {
         p["size"] = json!(size);
@@ -206,6 +284,7 @@ pub(crate) fn set_params(app: &TextureCraftApp, ts: usize) -> serde_json::Value 
                 if let Some(t) = &m.file_type {
                     v["format"] = json!(t.format);
                     v["bitDepth"] = json!(t.bit_depth);
+                    v["dithering"] = json!(t.dithering);
                 }
                 v
             })
@@ -227,8 +306,8 @@ fn elide_front(text: &str) -> String {
 }
 
 /// A file type and bit depth as an Output maps row shows them ("png   8 bits")
-fn file_type_text(format: &str, bit_depth: u8) -> String {
-    format!("{}   {}", file_type_name(format), bits_label(bit_depth))
+fn file_type_text(t: &FileType) -> String {
+    format!("{}   {}", file_type_name(&t.format), depth_label(FileFormat::from_extension(&t.format), t.bit_depth, t.dithering))
 }
 
 /// One Output maps row: the map, its file name pattern and what it is written as without its
@@ -255,8 +334,9 @@ fn map_rows(app: &mut TextureCraftApp, ts: usize) -> Vec<MapRow> {
         }
         let format = f.get("format").and_then(serde_json::Value::as_str).unwrap_or("png").to_string();
         let bit_depth = f.get("bitDepth").and_then(serde_json::Value::as_u64).unwrap_or(8) as u8;
+        let dithering = f.get("dithering").and_then(serde_json::Value::as_bool).unwrap_or(false);
         let pattern = preset.as_ref().and_then(|p| p.maps.get(map)).map(|m| m.file.clone()).unwrap_or_default();
-        rows.push(MapRow { map, pattern, inherited: FileType { format: file_type_name(&format), bit_depth } });
+        rows.push(MapRow { map, pattern, inherited: FileType { format: file_type_name(&format), bit_depth, dithering } });
     }
     rows
 }
@@ -299,7 +379,7 @@ fn output_maps(app: &mut TextureCraftApp, ui: &mut Ui, ts: usize) {
                 match &mut m.file_type {
                     Some(t) => file_type_combo(ui, ("exp_map", ts, row.map), t),
                     None => {
-                        ui.label(file_type_text(&row.inherited.format, row.inherited.bit_depth));
+                        ui.label(file_type_text(&row.inherited));
                     }
                 }
             });
@@ -418,8 +498,8 @@ fn global_page(app: &mut TextureCraftApp, ui: &mut Ui, builtins: &[ExportPreset]
     if reset {
         let d = ExportUi::default();
         let e = &mut app.ui.export;
-        (e.dir, e.format, e.bit_depth, e.size, e.padding, e.dilation, e.normal_format, e.color_space) =
-            (d.dir, d.format, d.bit_depth, d.size, d.padding, d.dilation, d.normal_format, d.color_space);
+        (e.dir, e.format, e.bit_depth, e.dithering, e.size, e.padding, e.dilation, e.normal_format, e.color_space) =
+            (d.dir, d.format, d.bit_depth, d.dithering, d.size, d.padding, d.dilation, d.normal_format, d.color_space);
         crate::export_templates::select(app, d.preset);
     }
     let (first, rest) = template_groups(app, builtins);
@@ -436,25 +516,7 @@ fn global_page(app: &mut TextureCraftApp, ui: &mut Ui, builtins: &[ExportPreset]
         ui.label(tr("File type"));
         ui.horizontal(|ui| {
             let e = &mut app.ui.export;
-            let label = if e.format.is_empty() { tr("Based on output template").to_string() } else { file_type_name(&e.format) };
-            egui::ComboBox::from_id_salt("exp_fmt").selected_text(label).show_ui(ui, |ui| {
-                ui.selectable_value(&mut e.format, String::new(), tr("Based on output template"));
-                ui.separator();
-                for f in FILE_TYPES {
-                    ui.selectable_value(&mut e.format, f.name().to_string(), f.name());
-                }
-            });
-            let bd = if e.bit_depth == 0 { tr("Default").to_string() } else { trf("{n} bits", &[("n", &e.bit_depth)]) };
-            egui::ComboBox::from_id_salt("exp_bits").selected_text(bd).show_ui(ui, |ui| {
-                for (v, l) in [
-                    (0u8, tr("Default").to_string()),
-                    (8, trf("{n} bits", &[("n", &8)])),
-                    (16, trf("{n} bits", &[("n", &16)])),
-                    (32, tr("32 bits (float)").to_string()),
-                ] {
-                    ui.selectable_value(&mut e.bit_depth, v, l);
-                }
-            });
+            file_type_lists(ui, ("exp_global", 0, 0), true, &mut e.format, &mut e.bit_depth, &mut e.dithering);
         });
         ui.end_row();
         ui.label(tr("Size"));
@@ -575,13 +637,17 @@ fn inherited(app: &TextureCraftApp, ts: usize) -> Inherited {
     let e = &app.ui.export;
     let own = app.session.doc.project.texture_sets.get(ts).map_or(1024, |t| t.resolution);
     let format = if e.format.is_empty() { FileFormat::Png.name().to_string() } else { file_type_name(&e.format) };
-    let bit_depth = FileFormat::from_extension(&format).map_or(8, |f| f.depth(if e.bit_depth == 0 { 8 } else { e.bit_depth }));
+    let (bit_depth, dithering) = match FileFormat::from_extension(&format) {
+        Some(f) if e.bit_depth > 0 => (f.depth(e.bit_depth), e.dithering),
+        Some(f) => (f.default_depth(), false),
+        None => (8, false),
+    };
     let size = match e.size {
         0 => own,
         SIZE_OF_LARGEST_SET => largest_set(app),
         n => n,
     };
-    Inherited { preset: e.preset.clone(), file_type: FileType { format, bit_depth }, size, padding: (e.padding.clone(), e.dilation) }
+    Inherited { preset: e.preset.clone(), file_type: FileType { format, bit_depth, dithering }, size, padding: (e.padding.clone(), e.dilation) }
 }
 
 /// Switch one override of `o` on (from what the set inherits) or off
@@ -596,20 +662,7 @@ fn toggle(o: &mut SetExport, row: usize, from: &Inherited) {
 
 /// A file type dropdown (without "Based on output template") and its bit depth
 fn file_type_combo(ui: &mut Ui, id: (&str, usize, usize), t: &mut FileType) {
-    egui::ComboBox::from_id_salt(("type", id)).width(90.0).selected_text(t.format.clone()).show_ui(ui, |ui| {
-        for f in FILE_TYPES {
-            if ui.selectable_label(t.format == f.name(), f.name()).clicked() {
-                t.format = f.name().to_string();
-                t.bit_depth = f.depth(t.bit_depth);
-            }
-        }
-    });
-    let depths = FileFormat::from_extension(&t.format).map_or(&[8u8][..], FileFormat::bit_depths);
-    egui::ComboBox::from_id_salt(("bits", id)).width(90.0).selected_text(bits_label(t.bit_depth)).show_ui(ui, |ui| {
-        for &d in depths {
-            ui.selectable_value(&mut t.bit_depth, d, bits_label(d));
-        }
-    });
+    file_type_lists(ui, id, false, &mut t.format, &mut t.bit_depth, &mut t.dithering);
 }
 
 /// A texture set's page: its overrides of the global settings
@@ -619,13 +672,7 @@ fn set_page(app: &mut TextureCraftApp, ui: &mut Ui, ts: usize, builtins: &[Expor
     let (first, rest) = template_groups(app, builtins);
     let first: Vec<(&str, bool)> = first.into_iter().filter(|(n, _)| !NOT_PER_SET.contains(n)).collect();
     let global = &app.ui.export;
-    let inherited_file_type = if global.format.is_empty() {
-        tr("Based on output template").to_string()
-    } else if global.bit_depth == 0 {
-        file_type_name(&global.format)
-    } else {
-        format!("{}   {}", file_type_name(&global.format), bits_label(global.bit_depth))
-    };
+    let inherited_file_type = if global.format.is_empty() { tr("Based on output template").to_string() } else { file_type_text(&from.file_type) };
     let inherited_size = match global.size {
         0 => set_size_label(own, own),
         _ => set_size_label(from.size, own),

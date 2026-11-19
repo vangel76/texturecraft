@@ -86,16 +86,18 @@ pub fn preset_to_json(preset: &ExportPreset) -> Result<String>;
   1 − roughness, `AoMixed` = baked AO × AO channel, `F0` = 0.08 × specular level),
   `Baked { map, component }`, `Constant(f32)`.
 - `ExportOptions { preset, format_override, bit_depth_override, padding, size, normal_format }`;
-  `Padding::{None, Dilation(n), DilationDefault(n), Infinite}`; `size` must be a power of two
+  `Padding::{None, Dilation(n), DilationDefault(n), DilationDiffusion(n), Infinite}`; `size` must be a power of two
   (box filter down, bilinear up).
 - File templates: `$project`, `$mesh`, `$textureSet`, `$channel`, `$colorSpace`; names are
   sanitized to `[A-Za-z0-9_.-]` (reserved device names get a `_` prefix); case-insensitive
   collisions get `_2`, `_3`, … plus a warning.
 - A map is written only when one of its sources has data in the texture set (channel present,
   map baked, …); alpha from a missing channel is dropped.
-- Formats: PNG 8/16, JPEG 8 (q 95), TGA 8, TIFF 8/16, BMP 8, WebP 8 (lossless), EXR 16f/32f
-  (`Y`, `YA`, `RGB`, `RGBA`, ZIP), HDR 32f. Color maps are sRGB in 8/16-bit and linear in float
-  formats; data maps are linear; height is stored as `h · 0.5 + 0.5`.
+- Formats: PNG 8/16, JPEG 8 (q 95), JNG 8 (JPEG colour, deflate alpha), PGM 8/16 (gray; colour
+  becomes luminance), TGA 8, TIFF 8/16/32f, BMP 8, WebP 8 (lossless), PSD 8/16 (merged image, no
+  layers), EXR 16f/32f (`Y`, `YA`, `RGB`, `RGBA`, ZIP), HDR 32f. 8-bit files can be dithered
+  (`ExportOptions::dither`, an 8×8 ordered pattern). Color maps are sRGB in 8/16-bit and linear in
+  float files; data maps are linear; height is stored as `h · 0.5 + 0.5`.
 - Final normal: Sobel normal from the height channel (strength = `height_strength`; with 1, a
   height change of 1 over 1/16 of the texture width tilts 45°; `+Y` up the image), combined with
   the normal channel, then with the baked normal map, by Reoriented Normal Mapping. DirectX

@@ -321,6 +321,9 @@ pub struct FileType {
     /// The listed name ("png", "targa", ...).
     pub format: String,
     pub bit_depth: u8,
+    /// "8 bits + dithering".
+    #[serde(default)]
+    pub dithering: bool,
 }
 
 /// One texture set's export overrides (None: the global setting).
@@ -388,7 +391,10 @@ pub struct ExportUi {
     pub format: String,
     /// Bit depth override (0 = the preset's).
     pub bit_depth: u8,
-    /// none | dilation | dilationDefault | infinite
+    /// Dither the 8-bit files of the file type override.
+    #[serde(default)]
+    pub dithering: bool,
+    /// none | dilation | dilationDefault | diffusion | infinite
     pub padding: String,
     pub dilation: u32,
     /// Output size override (0 = each texture set's size, [`SIZE_OF_LARGEST_SET`] = the largest set's).
@@ -428,6 +434,7 @@ impl Default for ExportUi {
             preset: texturecraft_engine::formats::DEFAULT_PRESET.into(),
             format: String::new(),
             bit_depth: 0,
+            dithering: false,
             padding: "infinite".into(),
             dilation: 16,
             size: 0,

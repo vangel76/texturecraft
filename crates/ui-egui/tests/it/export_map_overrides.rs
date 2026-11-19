@@ -118,7 +118,7 @@ fn export_writes_a_map_with_its_own_file_type() {
     let _ = std::fs::remove_dir_all(&dir);
     let template = h.state().ui.export.preset.clone();
     let mut o = SetExport { maps_template: template, ..SetExport::default() };
-    o.maps.insert(first, MapExport { enabled: true, file_type: Some(FileType { format: "targa".into(), bit_depth: 8 }) });
+    o.maps.insert(first, MapExport { enabled: true, file_type: Some(FileType { format: "targa".into(), bit_depth: 8, dithering: false }) });
     let e = &mut h.state_mut().ui.export;
     e.dir = dir.display().to_string();
     e.sets.insert(0, o);
