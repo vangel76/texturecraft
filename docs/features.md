@@ -218,7 +218,7 @@ Everything TextureCraft does today, by area. What's still missing is in [`ROADMA
   apply on OK and Cancel drops them. General holds the language (or the system's), the 3D view's
   rotation, zoom and wheel speeds with inverse directions, GPU or CPU bake rays, resource limits
   (worker threads, cores kept for the UI, RAM while saving, project size on open) and the autosave
-  interval. Shortcuts rebinds any command. Libraries adds or removes folders whose saved smart
+  interval. Shortcuts rebinds any command in the sections Actions, Mouse shortcuts and Modifiers shortcuts (Delete clears a binding, a shared shortcut warns and keeps OK disabled, Reset all to default restores every key); the window reopens on the page it was closed on. Libraries adds or removes folders whose saved smart
   materials and masks the shelf lists.
 - A **shortcut editor** with conflict detection, listing every menu item and every command a key can run (commands that need a path, name or similar are left out), and every shortcut shown in its tooltip.
 - **Help menu:** Release notes... opens the project's releases page in the browser; Export log... saves the whole log (every channel, one line each with time and level) to a text file chosen in a save dialog.

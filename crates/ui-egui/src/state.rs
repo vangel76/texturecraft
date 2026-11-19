@@ -94,6 +94,9 @@ pub struct Windows {
     /// Edit > Settings: the page and the settings edited so far, applied by OK.
     #[serde(skip)]
     pub settings_draft: Option<crate::settings_window::SettingsDraft>,
+    /// The page Edit > Settings was on when it closed; the window opens there again.
+    #[serde(skip)]
+    pub settings_page: crate::settings_window::SettingsPage,
     /// File > Import resources: the files added so far, imported by Import.
     #[serde(skip)]
     pub import_resources: Option<ImportResources>,

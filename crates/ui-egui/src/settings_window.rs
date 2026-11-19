@@ -16,6 +16,12 @@ use crate::widgets::icon_button;
 
 /// The Libraries page's note on when locations can change.
 pub const PROJECT_OPEN_NOTE: &str = n_("Library locations can't be added/removed when a project is opened.");
+/// The hint of the default library's "-".
+pub const DEFAULT_LIBRARY_NOTE: &str = n_("Cannot remove the default library.");
+/// The Baking options' note when there is no GPU to trace rays on.
+pub const GPU_RAYTRACING_UNAVAILABLE: &str = n_("GPU raytracing not available for your hardware.");
+/// The footer's text while two shortcuts share a key combination.
+pub const SHORTCUT_ERRORS: &str = n_("One or several errors have been found in Shortcuts settings");
 
 /// The width of the left column of a row and of a page's controls.
 const LABEL_WIDTH: f32 = 176.0;
@@ -72,7 +78,7 @@ pub struct SettingsDraft {
 impl SettingsDraft {
     fn of(app: &TextureCraftApp) -> SettingsDraft {
         SettingsDraft {
-            page: SettingsPage::General,
+            page: app.ui.windows.settings_page,
             prefs: app.ui.prefs.clone(),
             keymap: app.ui.keymap.clone(),
             keymap_at_open: app.ui.keymap.clone(),
@@ -121,6 +127,10 @@ pub(crate) fn show(app: &mut TextureCraftApp, ctx: &egui::Context) {
     #[cfg(not(target_arch = "wasm32"))]
     let resources = settings_resources(ctx);
 
+    // The shortcut checker follows the working copy, so the page icon and the footer know of a shared shortcut
+    crate::keymap::follow(&mut app.settings_bindings, &draft.keymap, ctx);
+    let shortcut_conflict = crate::keymap::has_conflict(&app.settings_bindings);
+
     crate::windows::window("settings", tr("Settings"), &mut open).resizable(false).show(ctx, |ui| {
         // The window keeps to the column and the page; the OK and Cancel row would widen it otherwise
         ui.set_max_width(PAGE_BUTTON.x + PAGE_WIDTH + 32.0);
@@ -128,7 +138,8 @@ pub(crate) fn show(app: &mut TextureCraftApp, ctx: &egui::Context) {
             ui.vertical(|ui| {
                 ui.set_width(PAGE_BUTTON.x);
                 for page in SettingsPage::ALL {
-                    if page_button(ui, page, draft.page == page).clicked() {
+                    let warn = page == SettingsPage::Shortcuts && shortcut_conflict;
+                    if page_button(ui, page, draft.page == page, warn).clicked() {
                         draft.page = page;
                     }
                     ui.add_space(6.0);
@@ -157,8 +168,6 @@ pub(crate) fn show(app: &mut TextureCraftApp, ctx: &egui::Context) {
                                 );
                             }
                             SettingsPage::Shortcuts => {
-                                ui.label(caption(tr("ACTIONS")));
-                                ui.add_space(4.0);
                                 crate::keymap::actions_page(ui, &mut draft.keymap, &app.bindings, &mut app.settings_bindings);
                             }
                             SettingsPage::Libraries => {
@@ -175,14 +184,21 @@ pub(crate) fn show(app: &mut TextureCraftApp, ctx: &egui::Context) {
                 });
         });
         ui.separator();
+        // The page has brought the checker up to date, so OK follows this frame's edits
+        let conflict = crate::keymap::has_conflict(&app.settings_bindings);
         ui.horizontal(|ui| {
+            if conflict {
+                let danger = Tokens::get(ui.ctx()).danger;
+                ui.label(RichText::new(format!("{} {}", ic::WARNING, tr(SHORTCUT_ERRORS))).color(danger));
+            }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 cancel = ui.add(egui::Button::new(tr("Cancel")).min_size(vec2(100.0, 0.0))).clicked();
-                ok = ui.add(egui::Button::new(tr("OK")).min_size(vec2(100.0, 0.0))).clicked();
+                ok = ui.add_enabled(!conflict, egui::Button::new(tr("OK")).min_size(vec2(100.0, 0.0))).clicked();
             });
         });
     });
 
+    app.ui.windows.settings_page = draft.page;
     if draft.page != SettingsPage::Shortcuts || ok || cancel || !open {
         crate::keymap::stop_settings_capture(ctx);
     }
@@ -243,7 +259,7 @@ fn ask_folder(app: &mut TextureCraftApp, pick: Pick) {
 }
 
 /// A page of the left column: a big icon over its caption, the caption highlighted when chosen.
-fn page_button(ui: &mut Ui, page: SettingsPage, selected: bool) -> Response {
+fn page_button(ui: &mut Ui, page: SettingsPage, selected: bool, warn: bool) -> Response {
     let tk = Tokens::get(ui.ctx());
     let label = tr(page.label());
     let (rect, response) = ui.allocate_exact_size(PAGE_BUTTON, egui::Sense::click());
@@ -259,6 +275,10 @@ fn page_button(ui: &mut Ui, page: SettingsPage, selected: bool) -> Response {
     painter.text(rect.center_top() + vec2(0.0, 4.0), egui::Align2::CENTER_TOP, page.icon(), egui::FontId::proportional(PAGE_ICON_SIZE), icon_color);
     let text_color = if selected { tk.accent } else { tk.text };
     let text = painter.text(rect.center_bottom() - vec2(0.0, 6.0), egui::Align2::CENTER_BOTTOM, label, egui::FontId::proportional(12.5), text_color);
+    if warn {
+        // The warning overlay on the icon
+        painter.text(rect.center_top() + vec2(PAGE_ICON_SIZE * 0.5, 4.0), egui::Align2::CENTER_TOP, ic::WARNING, egui::FontId::proportional(18.0), tk.danger);
+    }
     if selected {
         painter.rect_stroke(text.expand2(vec2(3.0, 1.0)), 2.0, egui::Stroke::new(1.0, tk.accent), egui::StrokeKind::Outside);
     }
@@ -408,6 +428,12 @@ fn general(
         ui.checkbox(&mut p.gpu_raytracing, tr("Enable GPU raytracing"))
             .on_hover_text(tr("Bakes cast their rays on the graphics card when one is available. Off, they run on the CPU."));
     });
+    if gpu.is_none() || cfg!(target_arch = "wasm32") {
+        ui.horizontal(|ui| {
+            ui.add_space(12.0);
+            ui.label(RichText::new(tr(GPU_RAYTRACING_UNAVAILABLE)).color(tk.danger));
+        });
+    }
 
     section(ui, n_("PREVIEW OPTIONS"));
     row(ui, tr("Local cache directory"), |ui, label| {
@@ -614,34 +640,38 @@ fn libraries(ui: &mut Ui, draft: &mut SettingsDraft, project_open: bool, #[cfg(n
     // The browser has no folders to add
     let can_change = !project_open && !cfg!(target_arch = "wasm32");
     section(ui, n_("LIBRARY LOCATIONS"));
-    ui.horizontal(|ui| {
-        ui.vertical(|ui| {
-            row(ui, tr("Name"), |ui, label| {
-                ui.add_enabled(can_change, egui::TextEdit::singleline(&mut draft.library_name).desired_width(CONTROL_WIDTH)).labelled_by(label);
-            });
-            row(ui, tr("Path"), |ui, label| {
-                ui.add_enabled(can_change, egui::TextEdit::singleline(&mut draft.library_path).desired_width(CONTROL_WIDTH - 24.0)).labelled_by(label);
-                let browse = ui.add_enabled(can_change, egui::Button::new("...").frame(false)).on_hover_text(tr("Choose the folder"));
-                #[cfg(not(target_arch = "wasm32"))]
-                if browse.clicked() {
-                    *pick = Some(Pick::LibraryPath);
-                }
-                #[cfg(target_arch = "wasm32")]
-                not_available(browse);
-            });
+    // With a project open the locations cannot change: the add row is gone and the note says why
+    if project_open {
+        ui.horizontal(|ui| {
+            ui.add_space(12.0);
+            ui.label(tr(PROJECT_OPEN_NOTE));
         });
-        let add = ui.add_enabled_ui(can_change && draft.can_add_library(), |ui| icon_button(ui, ic::PLUS, tr("Add the location"), false, 24.0)).inner;
-        let add = if cfg!(target_arch = "wasm32") { not_available(add) } else { add };
-        if add.clicked() {
-            draft.prefs.libraries.push(LibraryLocation { name: draft.library_name.trim().to_owned(), path: draft.library_path.trim().to_owned() });
-            draft.library_name.clear();
-            draft.library_path.clear();
-        }
-    });
-    ui.horizontal(|ui| {
-        ui.add_space(12.0);
-        ui.label(tr(PROJECT_OPEN_NOTE));
-    });
+    } else {
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                row(ui, tr("Name"), |ui, label| {
+                    ui.add_enabled(can_change, egui::TextEdit::singleline(&mut draft.library_name).desired_width(CONTROL_WIDTH)).labelled_by(label);
+                });
+                row(ui, tr("Path"), |ui, label| {
+                    ui.add_enabled(can_change, egui::TextEdit::singleline(&mut draft.library_path).desired_width(CONTROL_WIDTH - 24.0)).labelled_by(label);
+                    let browse = ui.add_enabled(can_change, egui::Button::new("...").frame(false)).on_hover_text(tr("Choose the folder"));
+                    #[cfg(not(target_arch = "wasm32"))]
+                    if browse.clicked() {
+                        *pick = Some(Pick::LibraryPath);
+                    }
+                    #[cfg(target_arch = "wasm32")]
+                    not_available(browse);
+                });
+            });
+            let add = ui.add_enabled_ui(can_change && draft.can_add_library(), |ui| icon_button(ui, ic::PLUS, tr("Add the location"), false, 24.0)).inner;
+            let add = if cfg!(target_arch = "wasm32") { not_available(add) } else { add };
+            if add.clicked() {
+                draft.prefs.libraries.push(LibraryLocation { name: draft.library_name.trim().to_owned(), path: draft.library_path.trim().to_owned() });
+                draft.library_name.clear();
+                draft.library_path.clear();
+            }
+        });
+    }
     ui.add_space(6.0);
 
     let mut remove = None;
@@ -671,7 +701,11 @@ fn libraries(ui: &mut Ui, draft: &mut SettingsDraft, project_open: bool, #[cfg(n
                 not_available(radio);
                 let label = trf("Remove {name}", &[("name", &name)]);
                 let minus = ui.add_enabled_ui(can_change && !is_built_in, |ui| icon_button(ui, ic::MINUS, &label, false, 20.0)).inner;
-                let minus = if is_built_in { not_available(minus) } else { minus };
+                let minus = match (is_built_in, is_default) {
+                    (true, _) if i == 0 => minus.on_disabled_hover_text(tr(DEFAULT_LIBRARY_NOTE)),
+                    (true, _) => not_available(minus),
+                    _ => minus,
+                };
                 if minus.clicked() {
                     remove = i.checked_sub(built_in.len());
                 }
