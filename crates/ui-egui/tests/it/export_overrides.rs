@@ -157,3 +157,30 @@ fn export_writes_each_set_with_its_overrides_and_cancel_drops_them() {
     click(&mut h, "Cancel");
     assert_eq!(overrides(&h).size, Some(128), "Cancel goes back to the overrides the window opened with");
 }
+
+#[test]
+fn overrides_stay_with_their_texture_set_and_their_project() {
+    let mut h = harness();
+    let names: Vec<String> = h.state().session.doc.project.texture_sets.iter().map(|t| t.name.clone()).collect();
+    assert!(names.len() >= 2);
+    let e = &mut h.state_mut().ui.export;
+    e.sets.insert(1, SetExport { size: Some(128), ..SetExport::default() });
+    e.skip = vec![1];
+    click(&mut h, "Save settings");
+
+    // The two texture sets trade names: the override and the tick follow the name
+    for (ts, name) in [(0, "swap"), (1, names[0].as_str()), (0, names[1].as_str())] {
+        texturecraft_engine::execute(&mut h.state_mut().session, "textureSet.rename", &serde_json::json!({"ts": ts, "name": name})).unwrap();
+    }
+    h.state_mut().ui.windows.export = true;
+    h.run_steps(4);
+    assert_eq!(overrides(&h).size, Some(128), "set 0 now carries the name that had the override");
+    assert_eq!(h.state().ui.export.skip, vec![0]);
+    click(&mut h, "Save settings");
+
+    // Another project starts without them
+    h.state_mut().session = texturecraft_engine::sample_session(256, 64).unwrap();
+    h.state_mut().ui.windows.export = true;
+    h.run_steps(4);
+    assert!(h.state().ui.export.sets.is_empty() && h.state().ui.export.skip.is_empty());
+}

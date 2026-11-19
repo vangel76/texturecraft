@@ -430,6 +430,13 @@ pub struct ExportUi {
     /// Per texture set (by index) overrides of the settings above.
     #[serde(default)]
     pub sets: std::collections::BTreeMap<usize, SetExport>,
+    /// Whose `skip` and `sets` these are: the project name, then its texture set names in order.
+    /// Another project drops them; texture sets that moved take theirs along, removed ones lose them.
+    #[serde(default)]
+    pub owner: Vec<String>,
+    /// The session's project id `owner` was taken in (None after a restart: the name decides).
+    #[serde(skip)]
+    pub owner_id: Option<u64>,
     pub tab: u8,
     /// SETTINGS tab: the texture set whose page shows (None: Global settings).
     #[serde(skip)]
@@ -474,6 +481,8 @@ impl Default for ExportUi {
             color_space: String::new(),
             skip: Vec::new(),
             sets: Default::default(),
+            owner: Vec::new(),
+            owner_id: None,
             tab: 0,
             page: None,
             draft: None,

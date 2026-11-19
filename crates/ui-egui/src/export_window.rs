@@ -919,6 +919,37 @@ fn selected_texture_count(app: &mut TextureCraftApp) -> usize {
     planned_files(app).map_or(0, |files| files.len())
 }
 
+/// Keep the texture set ticks and overrides with their texture sets: dropped for another project,
+/// moved with a texture set by name, dropped with a removed one
+fn follow_texture_sets(app: &mut TextureCraftApp) {
+    let project = &app.session.doc.project;
+    let mut owner = vec![project.name.clone()];
+    owner.extend(project.texture_sets.iter().map(|t| t.name.clone()));
+    let id = app.session.project_id;
+    let e = &mut app.ui.export;
+    if e.owner == owner && e.owner_id == Some(id) {
+        return;
+    }
+    let same_project = match e.owner_id {
+        Some(was) => was == id,
+        None => e.owner.first() == owner.first(),
+    };
+    let names = owner.get(1..).unwrap_or_default();
+    let old = e.owner.get(1..).unwrap_or_default().to_vec();
+    let moved = |i: usize| -> Option<usize> { if same_project { old.get(i).and_then(|n| names.iter().position(|x| x == n)) } else { None } };
+    let follow = |e: &mut ExportUi| {
+        e.sets = std::mem::take(&mut e.sets).into_iter().filter_map(|(i, o)| moved(i).map(|j| (j, o))).collect();
+        e.skip = e.skip.iter().filter_map(|i| moved(*i)).collect();
+        e.page = e.page.and_then(moved);
+    };
+    follow(e);
+    if let Some(before) = e.opened_with.as_deref_mut() {
+        follow(before);
+    }
+    e.owner = owner;
+    e.owner_id = Some(id);
+}
+
 /// The bit depth the window shows is the one exported: "Based on output template" has none (older
 /// settings could keep one there), and a file type gets one of its own depths.
 fn keep_file_type_visible(e: &mut ExportUi) {
@@ -1001,6 +1032,7 @@ pub fn show(app: &mut TextureCraftApp, ctx: &egui::Context) {
         app.ui.export.preset = b.name;
     }
     keep_file_type_visible(&mut app.ui.export);
+    follow_texture_sets(app);
     if app.ui.export.opened_with.is_none() {
         let mut now = app.ui.export.clone();
         now.draft = None;
