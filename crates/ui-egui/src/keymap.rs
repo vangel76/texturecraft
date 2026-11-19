@@ -29,8 +29,13 @@ pub struct Binding {
 
 /// Rows the reference lists whose function TextureCraft does not have yet, as (listed before the
 /// row of this id, action, shortcut). Settings > Shortcuts shows them disabled.
-pub const NOT_AVAILABLE_ACTIONS: &[(&str, &str, &str)] =
-    &[("file.reimportMesh", "Pause Engine Computation", "Shift+Esc"), ("viewport.frame", "Toggle animation", "Space")];
+///
+/// They are not in [`bindings`], so no key runs them, but another item given their key is reported
+/// as sharing it.
+pub static NOT_AVAILABLE_ACTIONS: [(&str, Binding); 2] = [
+    ("file.reimportMesh", Binding { id: "ui.pauseEngine", group: "Commands", label: "Pause Engine Computation", default: Some("Shift+Esc") }),
+    ("viewport.frame", Binding { id: "ui.toggleAnimation", group: "Viewport", label: "Toggle animation", default: Some("Space") }),
+];
 
 /// An item of the shortcut list under the name and key the reference lists it with. The menus keep
 /// their own texts; Quit keeps Ctrl+Q, where the reference has no key.
@@ -60,7 +65,7 @@ const LISTED: &[Listed] = &[
     listed("file.reimportMesh", "Reimport mesh", Some("Ctrl+Shift+R")),
     listed("ui.mode.bake", "Switch to baking mode", Some("Ctrl+Shift+B")),
     listed("ui.mode.paint", "Switch to edition mode", Some("F9")),
-    listed("ui.mode.render", "Switch to visualisation mode (Iray)", Some("F10")),
+    listed("ui.mode.render", "Switch to rendering mode (path traced)", Some("F10")),
     listed("ui.wireframe", "Show mesh wireframe", None),
     listed("camera.perspective", "Camera projection: Perspective view", Some("F5")),
     listed("camera.orthographic", "Camera projection: Orthographic view", Some("F6")),
@@ -279,8 +284,14 @@ impl Bindings {
 
     /// Another binding on the same shortcut as `b`.
     fn conflict(&self, b: &Binding) -> Option<&'static Binding> {
-        let clash = self.map.conflicts_with(&CommandRef::new(b.id)).into_iter().find(|c| c.kind == ConflictKind::Clash)?;
-        bindings().iter().find(|x| x.id == clash.b.0.id)
+        let clash = self.map.conflicts_with(&CommandRef::new(b.id)).into_iter().find(|c| c.kind == ConflictKind::Clash);
+        if let Some(clash) = clash {
+            return bindings().iter().find(|x| x.id == clash.b.0.id);
+        }
+
+        // The rows the reference lists and TextureCraft cannot run yet still own their keys
+        let mine = parse(shortcut(&self.stored, b)?)?;
+        NOT_AVAILABLE_ACTIONS.iter().map(|(_, row)| row).find(|row| row.default.and_then(parse) == Some(mine))
     }
 }
 
@@ -421,8 +432,8 @@ pub(crate) fn actions_page(ui: &mut egui::Ui, keymap: &mut Keymap, recorder: &Bi
     ui.label(caption(tr("Actions")));
     ui.add_space(4.0);
     for (i, b) in bindings().iter().enumerate() {
-        for (_, action, key) in NOT_AVAILABLE_ACTIONS.iter().filter(|(before, ..)| *before == b.id) {
-            locked_row(ui, action, key);
+        for (_, row) in NOT_AVAILABLE_ACTIONS.iter().filter(|(before, _)| *before == b.id) {
+            locked_row(ui, row.label, row.default.unwrap_or(""));
         }
         let waiting = capture == Some(i);
         ui.horizontal(|ui| {
@@ -531,9 +542,25 @@ pub fn window(app: &mut TextureCraftApp, ctx: &egui::Context) {
         egui::ScrollArea::vertical().max_height(420.0).auto_shrink([false, true]).show(ui, |ui| {
             egui::Grid::new("keymap_grid").num_columns(3).striped(true).spacing(vec2(10.0, 4.0)).show(ui, |ui| {
                 for (i, b) in bindings().iter().enumerate() {
+                    for (_, row) in NOT_AVAILABLE_ACTIONS.iter().filter(|(before, _)| *before == b.id) {
+                        let key = row.default.unwrap_or("");
+                        if !needle.is_empty() && ![row.label, row.group, tr(row.label), tr(row.group), key].iter().any(|t| t.to_lowercase().contains(&needle)) {
+                            continue;
+                        }
+                        ui.horizontal(|ui| {
+                            ui.label(tr(row.label));
+                            ui.label(RichText::new(tr(row.group)).size(10.5).color(tk.text_dim));
+                        });
+                        let button = egui::Button::new(RichText::new(key).monospace()).min_size(vec2(130.0, 0.0));
+                        ui.add_enabled(false, button).on_disabled_hover_text(tr(NOT_AVAILABLE));
+                        ui.end_row();
+                    }
                     let current = shortcut(&app.ui.keymap, b);
+                    let current_text = current.map(shown);
                     if !needle.is_empty()
-                        && ![b.label, b.group, tr(b.label), tr(b.group), b.id, current.unwrap_or("")].iter().any(|t| t.to_lowercase().contains(&needle))
+                        && ![b.label, b.group, tr(b.label), tr(b.group), b.id, current.unwrap_or(""), current_text.unwrap_or("")]
+                            .iter()
+                            .any(|t| t.to_lowercase().contains(&needle))
                     {
                         continue;
                     }
@@ -543,7 +570,7 @@ pub fn window(app: &mut TextureCraftApp, ctx: &egui::Context) {
                         ui.label(RichText::new(tr(b.group)).size(10.5).color(tk.text_dim));
                     });
                     let waiting = capture == Some(i);
-                    let text = if waiting { tr("Press a key...") } else { current.unwrap_or("-") };
+                    let text = if waiting { tr("Press a key...") } else { current_text.unwrap_or("-") };
                     let key = egui::Button::new(RichText::new(text).monospace()).selected(waiting).min_size(vec2(130.0, 0.0));
                     if ui.add(key).on_hover_text(tr("Click, then press the new shortcut (Esc cancels)")).clicked() {
                         capture = if waiting { None } else { Some(i) };

@@ -339,6 +339,11 @@ fn speed_slider(ui: &mut Ui, label: &str, value: &mut f32, width: f32) -> Respon
     .inner
 }
 
+/// Whether the Baking options say there is no GPU to trace rays on: no adapter, or the browser.
+pub fn gpu_note_shown(adapter: Option<&str>) -> bool {
+    adapter.is_none() || cfg!(target_arch = "wasm32")
+}
+
 /// The General page.
 fn general(
     ui: &mut Ui,
@@ -428,7 +433,7 @@ fn general(
         ui.checkbox(&mut p.gpu_raytracing, tr("Enable GPU raytracing"))
             .on_hover_text(tr("Bakes cast their rays on the graphics card when one is available. Off, they run on the CPU."));
     });
-    if gpu.is_none() || cfg!(target_arch = "wasm32") {
+    if gpu_note_shown(gpu) {
         ui.horizontal(|ui| {
             ui.add_space(12.0);
             ui.label(RichText::new(tr(GPU_RAYTRACING_UNAVAILABLE)).color(tk.danger));

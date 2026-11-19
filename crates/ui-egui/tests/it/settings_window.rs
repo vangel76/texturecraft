@@ -420,6 +420,11 @@ fn the_libraries_page_hides_the_add_row_with_a_project_open_and_explains_the_def
 
 #[test]
 fn the_baking_options_say_when_there_is_no_gpu_to_trace_on() {
+    // The condition, with and without an adapter (the harness's own adapter is not under test)
+    assert!(texturecraft_ui_egui::settings_window::gpu_note_shown(None));
+    assert_eq!(texturecraft_ui_egui::settings_window::gpu_note_shown(Some("Some GPU")), cfg!(target_arch = "wasm32"));
+
+    // The page shows the note exactly when the harness has no adapter (the IRAY HARDWARE row says "no GPU")
     let mut h = harness(texturecraft_engine::sample_session(128, 32).unwrap());
     open_settings(&mut h);
     let no_gpu = h.query_by_label("no GPU").is_some();

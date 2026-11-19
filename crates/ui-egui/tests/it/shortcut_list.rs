@@ -37,7 +37,7 @@ fn the_list_starts_with_the_reference_names_and_keys_in_the_reference_order() {
         ("Reimport mesh", "Ctrl+Shift+R"),
         ("Switch to baking mode", "Ctrl+Shift+B"),
         ("Switch to edition mode", "F9"),
-        ("Switch to visualisation mode (Iray)", "F10"),
+        ("Switch to rendering mode (path traced)", "F10"),
         ("Show mesh wireframe", ""),
         ("Camera projection: Perspective view", "F5"),
         ("Camera projection: Orthographic view", "F6"),
@@ -69,8 +69,9 @@ fn no_two_default_shortcuts_are_the_same() {
             assert_eq!(seen.insert(key, b.id), None, "{key} is the default of {} and another item", b.id);
         }
     }
-    for (_, action, key) in NOT_AVAILABLE_ACTIONS {
-        assert!(!seen.contains_key(key), "{action} shows {key}, which another item has");
+    for (_, row) in &NOT_AVAILABLE_ACTIONS {
+        let key = row.default.unwrap();
+        assert!(!seen.contains_key(key), "{} shows {key}, which another item has", row.label);
     }
 }
 
@@ -98,7 +99,8 @@ fn the_settings_page_lists_the_reference_names_and_shows_the_missing_functions_d
         assert!(h.query_by_label(name).is_some(), "{name} is listed");
     }
     assert!(h.query_by_label("Open...").is_none(), "the menu's text is not the list's");
-    for (_, action, _) in NOT_AVAILABLE_ACTIONS {
+    for (_, row) in &NOT_AVAILABLE_ACTIONS {
+        let action = row.label;
         h.get_by_label(action).scroll_to_me();
         h.run_steps(3);
         assert!(h.get_by_label(&format!("Edit the shortcut of {action}")).accesskit_node().is_disabled(), "{action} has no function yet");
@@ -144,4 +146,28 @@ fn greater_and_less_select_the_next_and_previous_camera() {
     assert_eq!(angles(&h), first, ">");
     press(&mut h, Key::Comma, Modifiers::SHIFT);
     assert_eq!(angles(&h), second, "<");
+}
+
+#[test]
+fn a_key_listed_for_a_missing_function_is_reported_as_shared() {
+    let mut h = harness();
+    let ctx = h.ctx.clone();
+    menus::invoke(h.state_mut(), &ctx, "ui.settings");
+    h.run_steps(4);
+    h.get_by_role_and_label(Role::Tab, "Shortcuts").click();
+    h.run_steps(4);
+    h.state_mut().ui.windows.settings_draft.as_mut().unwrap().keymap.insert("ui.hideUi".into(), "Space".into());
+    h.run_steps(4);
+    assert!(h.query_by_label_contains("One or several errors").is_some(), "Space is Toggle animation's");
+    assert!(h.get_by_label("OK").accesskit_node().is_disabled());
+}
+
+#[test]
+fn the_shortcut_window_shows_the_reference_keys_and_the_missing_functions() {
+    let mut h = harness();
+    h.state_mut().ui.windows.shortcuts = true;
+    h.run_steps(4);
+    assert!(h.query_by_label("Pause Engine Computation").is_some() && h.query_by_label("Toggle animation").is_some());
+    assert!(h.query_all_by_label(">").next().is_some() && h.query_all_by_label("<").next().is_some(), "the camera keys read as the reference's");
+    assert!(h.query_by_label("Shift+Period").is_none());
 }
