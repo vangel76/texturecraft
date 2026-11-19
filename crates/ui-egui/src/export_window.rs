@@ -280,7 +280,7 @@ pub(crate) fn export_params(app: &TextureCraftApp) -> serde_json::Value {
     if !e.format.is_empty() {
         p["format"] = json!(e.format);
     }
-    if e.bit_depth > 0 {
+    if !e.format.is_empty() && e.bit_depth > 0 {
         p["bitDepth"] = json!(e.bit_depth);
         p["dithering"] = json!(e.dithering);
     }
@@ -919,6 +919,16 @@ fn selected_texture_count(app: &mut TextureCraftApp) -> usize {
     planned_files(app).map_or(0, |files| files.len())
 }
 
+/// The bit depth the window shows is the one exported: "Based on output template" has none (older
+/// settings could keep one there), and a file type gets one of its own depths.
+fn keep_file_type_visible(e: &mut ExportUi) {
+    match FileFormat::from_extension(&e.format) {
+        None => (e.format, e.bit_depth, e.dithering) = (String::new(), 0, false),
+        Some(f) if !depth_options(f).contains(&(e.bit_depth, e.dithering)) => (e.bit_depth, e.dithering) = (f.default_depth(), false),
+        Some(_) => {}
+    }
+}
+
 /// Go back to the settings the window opened with
 fn cancel(app: &mut TextureCraftApp) {
     if let Some(before) = app.ui.export.opened_with.take() {
@@ -954,6 +964,7 @@ pub fn show(app: &mut TextureCraftApp, ctx: &egui::Context) {
     {
         app.ui.export.preset = b.name;
     }
+    keep_file_type_visible(&mut app.ui.export);
     if app.ui.export.opened_with.is_none() {
         let mut now = app.ui.export.clone();
         now.draft = None;

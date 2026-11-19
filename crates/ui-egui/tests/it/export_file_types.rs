@@ -132,3 +132,23 @@ fn export_writes_the_chosen_type_and_depth() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn an_old_hidden_bit_depth_is_not_exported() {
+    let session = texturecraft_engine::sample_session(256, 64).unwrap();
+    let mut h = Harness::builder().with_size(egui::vec2(1600.0, 960.0)).build_eframe(|cc| TextureCraftApp::new(cc, session));
+    h.state_mut().ui.prefs.language = "en".into();
+
+    // Saved by an older build: "From template" with 16 bits
+    let e = &mut h.state_mut().ui.export;
+    (e.format, e.bit_depth) = (String::new(), 16);
+    h.state_mut().ui.windows.export = true;
+    h.run_steps(4);
+    assert_eq!(h.state().ui.export.bit_depth, 0, "what the window shows (no depth) is what exports");
+
+    // A type with a depth it does not have gets its default
+    let e = &mut h.state_mut().ui.export;
+    (e.format, e.bit_depth) = ("jpeg".into(), 16);
+    h.run_steps(2);
+    assert_eq!(h.state().ui.export.bit_depth, 8);
+}
