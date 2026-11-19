@@ -263,7 +263,7 @@ const UV_TILE_OUTLINE_ALPHA: u8 = 40;
 /// Width of the UV tile outlines, in points
 const UV_TILE_OUTLINE_WIDTH: f32 = 1.0;
 
-/// The texture set name in the 2D view's bottom-right corner: its inset from the corner and its text size, in points
+/// The texture set label in the 2D view's bottom-left corner: its inset from the corner and its text size, in points
 const SET_NAME_INSET: egui::Vec2 = vec2(10.0, 10.0);
 const SET_NAME_TEXT_SIZE: f32 = 11.0;
 
@@ -273,10 +273,6 @@ const BAKE_PAINT_CURSOR_MIN_RADIUS: f32 = 2.0;
 /// The bake brush cursor's outline: width in points and white alpha
 const BAKE_PAINT_CURSOR_STROKE: f32 = 1.0;
 const BAKE_PAINT_CURSOR_ALPHA: u8 = 200;
-
-/// A UDIM tile label: its offset from the tile's top-left corner and its text size, in points
-const UV_TILE_LABEL_OFFSET: egui::Vec2 = vec2(6.0, 4.0);
-const UV_TILE_LABEL_SIZE: f32 = 11.0;
 
 /// The projection stencil's dashed outline: width, white alpha, dash and gap, in points
 const STENCIL_OUTLINE_STROKE: f32 = 1.0;
@@ -335,6 +331,14 @@ const VIEW_MODE_AUX_TEXTURE: u32 = 2;
 const VIEW_MODE_UV_CHECKER: u32 = 3;
 const VIEW_MODE_NORMAL_HEIGHT_MESH: u32 = 4;
 
+/// Whether the views draw the mesh wireframe (the 3D edges and the 2D UV edges follow the one switch)
+fn wireframe_shown(ui: &crate::state::UiState, polygon_fill_tool: bool) -> bool {
+    ui.mesh_wireframe || polygon_fill_tool
+}
+
+/// Opacity of the wireframe polygon fill shows while the Show mesh wireframe switch is off
+const POLYGON_FILL_WIREFRAME_OPACITY: f32 = 0.4;
+
 fn shade(app: &TextureCraftApp) -> Shade {
     let (view_mode, channel) = match app.session.view {
         _ if quick_mask_shown(app) => (VIEW_MODE_AUX_TEXTURE, 0),
@@ -353,8 +357,10 @@ fn shade(app: &TextureCraftApp) -> Shade {
         height_strength,
         view_mode,
         channel,
-        wireframe: app.ui.uv_wireframe || polygon_fill_tool,
-        wireframe_3d: app.ui.wireframe_3d || polygon_fill_tool,
+        wireframe: wireframe_shown(&app.ui, polygon_fill_tool),
+        wireframe_3d: wireframe_shown(&app.ui, polygon_fill_tool),
+        // Polygon fill's own wireframe keeps its look when the user's opacity hides the switch's wireframe
+        wireframe_opacity: if app.ui.mesh_wireframe { app.ui.wireframe_opacity / 100.0 } else { POLYGON_FILL_WIREFRAME_OPACITY },
         ..Shade::from_project(&app.session.doc.project)
     }
 }
@@ -535,7 +541,32 @@ fn view_header(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, id: &str) {
         });
     }
 
+    // The 2D view of a UV tile project: a checkable button left of the view mode, with no tooltip, that shows or hides the tile numbers and the hover label
+    if id == "v2d" && uv_tile_project(app) {
+        child.spacing_mut().item_spacing.x = UV_TILE_INFO_SPACING;
+        let shown = app.ui.uv_tile_info;
+        let button = crate::widgets::icon_button_without_tooltip(&mut child, egui_phosphor::regular::DOTS_NINE, UV_TILE_INFO_NAME, shown, VIEW_HEADER_HEIGHT);
+        if !shown {
+            // Crossed out while the numbers are hidden
+            let (from, to) = (button.rect.left_bottom() + vec2(5.0, -5.0), button.rect.right_top() + vec2(-5.0, 5.0));
+            child.painter().line_segment([from, to], Stroke::new(1.5, Tokens::get(child.ctx()).text));
+        }
+        if button.clicked() {
+            app.ui.uv_tile_info = !shown;
+        }
+    }
     view_mode_picker(app, &mut child, &format!("{id}_mode"), VIEW_PICKER_WIDTH);
+}
+
+/// The tile info button's name for screen readers: the reference's object name, since it has no text or tooltip
+const UV_TILE_INFO_NAME: &str = "uvtile_info_menu_button";
+
+/// Gap between the header's widgets while the tile info button is in it, so that both pickers and the button fit the header
+const UV_TILE_INFO_SPACING: f32 = 4.0;
+
+/// Whether the open project's active texture set is a UV tile set
+pub(crate) fn uv_tile_project(app: &TextureCraftApp) -> bool {
+    app.session.project_open && app.session.doc.project.texture_sets.get(app.session.ts()).is_some_and(|set| set.tile_grid().is_some())
 }
 
 /// The view-mode picker of a view's header and of Display Settings: the material, the channels, the mesh maps and the UV checker
@@ -647,11 +678,16 @@ fn uv_axis_directions(rotation: f32) -> (egui::Vec2, egui::Vec2) {
     (vec2(cos, -sin), vec2(-sin, -cos))
 }
 
+/// Distance of the 2D view's axis gizmo origin from the view's right and bottom edges: room for the axis letters in any rotation
+const UV_GIZMO_INSET: f32 = 36.0;
+
 fn axis_gizmo(ui: &Ui, rect: Rect, app: &TextureCraftApp, uv_rotation: Option<f32>) {
     let tk = Tokens::get(ui.ctx());
     let o = pos2(rect.left() + 28.0, rect.bottom() - 28.0);
     let p = ui.painter();
     if let Some(rotation) = uv_rotation {
+        // The 2D view keeps it in the bottom-right corner, the label of the texture set sits bottom left
+        let o = pos2(rect.right() - UV_GIZMO_INSET, rect.bottom() - UV_GIZMO_INSET);
         // The U and V axes turn with the 2D view
         let (u, v) = uv_axis_directions(rotation);
         p.line_segment([o, o + u * 16.0], Stroke::new(1.5, Color32::from_rgb(0xd8, 0x4a, 0x3a)));
@@ -2379,21 +2415,16 @@ fn view_2d(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, sync: &mut Pendin
         painter.add(egui::Shape::closed_line(corners.to_vec(), Stroke::new(UV_TILE_OUTLINE_WIDTH, Color32::from_white_alpha(UV_TILE_OUTLINE_ALPHA))));
     };
     let quad = |u0: f32, v0: f32, u1: f32, v1: f32| [to_screen(u0, v0), to_screen(u1, v0), to_screen(u1, v1), to_screen(u0, v1)];
-    match set.and_then(|texture_set| Some((texture_set, texture_set.tile_grid()?))) {
+    let tile_grid = set.and_then(|texture_set| Some((texture_set, texture_set.tile_grid()?)));
+    match tile_grid {
         Some((texture_set, grid)) => {
+            // Grid lines over the whole view with the UV axes and the tile numbers, and an outline around each tile the set paints
+            crate::uv_tile_grid::draw(&painter, view_map, texture_set, grid, app.ui.uv_tile_info, tokens.viewport_text);
             for (udim, (block_x, block_y)) in texture_set.uv_tiles.iter().filter_map(|udim| Some((*udim, grid.block(*udim)?))) {
                 // A tile smaller than its block fills the block's top-left corner
                 let (u0, v0) = (block_x as f32 / grid.cols as f32, block_y as f32 / grid.rows as f32);
                 let tile_scale = texture_set.tile_scale(udim);
-                let tile = quad(u0, v0, u0 + tile_scale / grid.cols as f32, v0 + tile_scale / grid.rows as f32);
-                outline(tile);
-                painter.text(
-                    tile[0] + UV_TILE_LABEL_OFFSET,
-                    egui::Align2::LEFT_TOP,
-                    udim.to_string(),
-                    egui::FontId::proportional(UV_TILE_LABEL_SIZE),
-                    tokens.viewport_text,
-                );
+                outline(quad(u0, v0, u0 + tile_scale / grid.cols as f32, v0 + tile_scale / grid.rows as f32));
             }
         }
         None => {
@@ -2464,9 +2495,28 @@ fn view_2d(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, sync: &mut Pendin
     mask_view_badge(app, ui, rect);
     axis_gizmo(ui, rect, app, Some(app.ui.uv_rotation));
     crate::nav_buttons::show(app, ui, rect, crate::nav_buttons::NavView::Uv);
-    let name = app.session.doc.project.texture_sets.get(texture_set_index).map(|texture_set| texture_set.name.clone()).unwrap_or_default();
-    let name_position = rect.right_bottom() - SET_NAME_INSET;
-    ui.painter().text(name_position, egui::Align2::RIGHT_BOTTOM, name, egui::FontId::proportional(SET_NAME_TEXT_SIZE), tokens.viewport_text);
+    if let Some(label) = hover_label(app, view_map, response.hover_pos()) {
+        let label_position = rect.left_bottom() + vec2(SET_NAME_INSET.x, -SET_NAME_INSET.y);
+        ui.painter().text(label_position, egui::Align2::LEFT_BOTTOM, label, egui::FontId::proportional(SET_NAME_TEXT_SIZE), tokens.viewport_text);
+    }
+}
+
+/// The label in the 2D view's bottom-left corner: the texture set and, in a UV tile set with tile info on, the tile under the cursor ("<set> - <tile>").
+/// A set that is not tiled shows its name alone.
+fn hover_label(app: &TextureCraftApp, view_map: crate::uv_view_map::UvViewMap, hover: Option<Pos2>) -> Option<String> {
+    let set = app.session.doc.project.texture_sets.get(app.session.ts())?;
+    let tile = set.tile_grid().and_then(|grid| crate::uv_tile_grid::tile_under(view_map, set, grid, hover?));
+    hover_label_text(&set.name, set.tile_grid().is_some(), app.ui.uv_tile_info, tile)
+}
+
+/// [`hover_label`]'s text for a set called `name`: the name alone for a set that is not tiled, nothing in a tiled set with tile info off, else the name and the `tile` under the cursor
+fn hover_label_text(name: &str, tiled: bool, tile_info: bool, tile: Option<u32>) -> Option<String> {
+    match (tiled, tile_info, tile) {
+        (false, ..) => Some(name.to_owned()),
+        (true, false, _) => None,
+        (true, true, Some(tile)) => Some(format!("{name} - {tile}")),
+        (true, true, None) => Some(name.to_owned()),
+    }
 }
 
 /// Smallest visible 2D brush outline, in points
@@ -2625,6 +2675,29 @@ mod tests {
         }
         let (u, v) = uv_axis_directions(std::f32::consts::FRAC_PI_2);
         assert!((u - egui::vec2(0.0, -1.0)).length() < 1e-4 && (v - egui::vec2(-1.0, 0.0)).length() < 1e-4, "a counter-clockwise quarter turn: U up, V left");
+    }
+
+    #[test]
+    fn one_switch_turns_the_wireframe_on_in_both_views_and_polygon_fill_shows_it_without_changing_the_switch() {
+        let mut ui = crate::state::UiState::default();
+        assert!(!wireframe_shown(&ui, false), "off by default");
+        assert!(wireframe_shown(&ui, true), "polygon fill shows the polygons it fills");
+        assert!(!ui.mesh_wireframe);
+        ui.mesh_wireframe = true;
+        assert!(wireframe_shown(&ui, false));
+    }
+
+    #[test]
+    fn the_hover_label_names_the_set_and_the_tile_under_the_cursor() {
+        assert_eq!(hover_label_text("UdimMat", true, true, Some(1001)).as_deref(), Some("UdimMat - 1001"));
+        assert_eq!(hover_label_text("UdimMat", true, true, None).as_deref(), Some("UdimMat"), "off the tiles");
+        assert_eq!(hover_label_text("MatCube1", false, true, None).as_deref(), Some("MatCube1"), "a set that is not tiled");
+    }
+
+    #[test]
+    fn tile_info_off_hides_the_label_of_a_tiled_set_only() {
+        assert_eq!(hover_label_text("UdimMat", true, false, Some(1001)), None);
+        assert_eq!(hover_label_text("MatCube1", false, false, None).as_deref(), Some("MatCube1"), "the button only exists in UV tile projects");
     }
 
     #[test]

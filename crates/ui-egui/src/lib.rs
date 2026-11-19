@@ -112,6 +112,7 @@ pub mod unavailable;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod updates_ui;
 pub mod uv_paint_point;
+mod uv_tile_grid;
 mod uv_view_map;
 pub mod viewport;
 pub mod web_files;

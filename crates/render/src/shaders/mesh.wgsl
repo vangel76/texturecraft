@@ -740,7 +740,7 @@ fn fs_bg(i: BgOut) -> @location(0) vec4<f32> {
 // UV wireframe in the 2D view.
 @fragment
 fn fs_wire(i: VOut) -> @location(0) vec4<f32> {
-    return vec4<f32>(0.6, 0.6, 0.6, 0.16);
+    return vec4<f32>(0.9, 0.2, 0.2, g.bg.w);
 }
 
 // 3D wireframe over the shaded mesh: depth-tested, pulled slightly toward the camera so the
@@ -763,7 +763,7 @@ fn vs_wire3d(v: VIn) -> VOut {
 
 @fragment
 fn fs_wire3d(i: VOut) -> @location(0) vec4<f32> {
-    return vec4<f32>(0.35, 0.35, 0.35, 0.45);
+    return vec4<f32>(0.35, 0.35, 0.35, g.bg.w);
 }
 
 // How far overlay quads move toward the eye, as a fraction of their distance (as the wireframe does)

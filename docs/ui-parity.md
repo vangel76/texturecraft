@@ -196,3 +196,22 @@ the brush (Ctrl+left still does), so it can pan.
 
 Not measured in the reference, so chosen here: the turn speed (the 3D orbit's, from a horizontal drag), the snap step
 (90°) and the turn's centre (the view's centre).
+
+## 2D view: UV tile grid and one wireframe switch (2026-11-19)
+
+Closes [#683](https://github.com/storytold/texturecraft/issues/683). In a UV tile project the 2D view draws grid lines over
+the whole view, a red U axis line and a green V axis line through the UV origin (the lower-left corner of tile 1001), each
+UDIM number in a small box at its tile's lower-left corner (dimmer for tiles the set does not paint, such as "1012"), and
+the label "<set> - <tile>" at the bottom left. A checkable button left of the view-mode combo (no tooltip) hides the
+numbers and the label and shows a cross over its icon. A project that is not tiled shows the set name alone at the bottom
+left, as the reference does. The axis gizmo moved to the bottom right, where the reference has it.
+
+Display Settings has one "Show mesh wireframe" switch (off by default) with "Wireframe opacity" (40). It draws the mesh
+edges in the 3D view and the UV edges, now in red, in the 2D view, and replaces "Show wireframe in the 3D view" and
+"Show UV wireframe in the 2D view". A saved 3D wireframe switch carries over. "Wireframe color" is shown disabled with
+"Not available yet".
+
+The tile info button's icon is a grid of nine dots (the reference's has a small "i"). Not measured in the reference, so chosen here: the number box's look (a dark translucent box), the grid line strength,
+the tile shown in the hover label (only a tile the set paints; elsewhere the set name alone), the 3D wireframe's color, and
+that numbers hide once a tile is under 40 points on screen.
+

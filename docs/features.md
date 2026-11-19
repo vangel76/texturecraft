@@ -195,6 +195,12 @@ Everything TextureCraft does today, by area. What's still missing is in [`ROADMA
   bottom views** that frame the mesh (Viewport menu; bind your own keys in Settings).
 - **3D and UV wireframes** that show the mesh's own polygons: quads and n-gons from OBJ, FBX,
   COLLADA, USD, Alembic and PLY files keep their edges, without the triangulation's diagonals.
+  One **Show mesh wireframe** switch in Display Settings (off by default, with **Wireframe opacity**, 40 to start) draws
+  the edges in the 3D view and the UV edges, in red, in the 2D view.
+- **UV tile grid** in the 2D view of a UV tile (UDIM) project: grid lines over the whole view, a red U and a green V axis
+  line through the UV origin, each tile's number in a small box at its lower-left corner (dimmer for tiles the set does not
+  paint) and a label at the bottom left with the set and the tile under the cursor ("UdimMat - 1001"). A button left of the
+  view mode hides the numbers and the label.
 
 ## Interface
 

@@ -26,6 +26,9 @@ pub(crate) const SECTIONS: [PageSection; 4] = [
 /// What the reference's shadow opacity slider shows; TextureCraft's shadows have no opacity yet
 const SHADOWS_OPACITY_SHOWN: f32 = 90.0;
 
+/// What the greyed wireframe color button shows: the 3D wireframe's gray; the color is not settable yet
+const WIREFRAME_COLOR_SHOWN: [u8; 3] = [89, 89, 89];
+
 /// Indent of the rows under a sub-heading (Environment, Shadows)
 const ROW_INDENT: f32 = 12.0;
 
@@ -232,9 +235,20 @@ fn post_effects(ui: &mut Ui, display: &mut DisplaySettings) {
     }
 }
 
-/// The wireframes and temporal anti-aliasing
+/// The mesh wireframe and temporal anti-aliasing
 fn viewer(app: &mut TextureCraftApp, ui: &mut Ui, display: &mut DisplaySettings) {
-    ui.checkbox(&mut app.ui.wireframe_3d, tr("Show wireframe in the 3D view"));
-    ui.checkbox(&mut app.ui.uv_wireframe, tr("Show UV wireframe in the 2D view"));
+    sub_heading(ui, tr("Mesh wireframe"));
+    indented(ui, |ui| {
+        // One switch for the mesh edges in the 3D view and the UV edges in the 2D view
+        ui.checkbox(&mut app.ui.mesh_wireframe, tr("Show mesh wireframe"));
+        unavailable::greyed(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(tr("Wireframe color"));
+                let mut color = WIREFRAME_COLOR_SHOWN;
+                ui.color_edit_button_srgb(&mut color);
+            })
+        });
+        slider(ui, tr("Wireframe opacity"), &mut app.ui.wireframe_opacity, 0.0..=100.0, 0);
+    });
     ui.checkbox(&mut display.taa, tr("Temporal anti-aliasing (refines the 3D view while it is still)"));
 }

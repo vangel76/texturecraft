@@ -397,6 +397,11 @@ fn deserialize_shelf_panes_split<'de, D: serde::Deserializer<'de>>(deserializer:
     Ok(if share.is_finite() { share } else { default_shelf_panes_split() })
 }
 
+/// "Wireframe opacity" until changed: 40 of 100, as in the reference app
+fn default_wireframe_opacity() -> f32 {
+    40.0
+}
+
 /// Settings that start on, for saved states that predate them
 fn default_true() -> bool {
     true
@@ -469,11 +474,15 @@ pub struct UiState {
     /// Layer being renamed and the edit buffer.
     pub rename: Option<(u64, String)>,
     pub new_project: NewProject,
-    /// Show the UV wireframe in the 2D view.
-    pub uv_wireframe: bool,
-    /// Show the mesh wireframe over the 3D view.
-    #[serde(default)]
-    pub wireframe_3d: bool,
+    /// Show mesh wireframe: the mesh's edges over the 3D view and its UV edges in the 2D view (off by default)
+    #[serde(default, alias = "wireframe_3d")]
+    pub mesh_wireframe: bool,
+    /// Wireframe opacity, 0 to 100
+    #[serde(default = "default_wireframe_opacity")]
+    pub wireframe_opacity: f32,
+    /// The 2D view of a UV tile project shows the UDIM numbers and the hover label (the button left of the view mode)
+    #[serde(default = "default_true")]
+    pub uv_tile_info: bool,
     /// Show the orbit, pan and zoom buttons in the corner of the 3D and 2D views (Viewport menu)
     #[serde(default = "default_true")]
     pub nav_buttons: bool,
@@ -613,8 +622,9 @@ impl Default for UiState {
             text: TextUi::default(),
             rename: None,
             new_project: NewProject::default(),
-            uv_wireframe: true,
-            wireframe_3d: false,
+            mesh_wireframe: false,
+            wireframe_opacity: default_wireframe_opacity(),
+            uv_tile_info: true,
             nav_buttons: true,
             render: RenderUi::default(),
             prefs: Prefs::default(),
@@ -698,7 +708,7 @@ mod tests {
             ui.inactive_mode_dock.close(crate::docking::Panel::Log);
             ui.layout = ViewLayout::Only3D;
             ui.uv_zoom = 3.0;
-            ui.wireframe_3d = true;
+            ui.mesh_wireframe = true;
             ui.recent = vec!["a.tcraft".into()];
 
             ui.reset_panel_layout();
@@ -706,9 +716,27 @@ mod tests {
             let mut fresh = UiState { mode, ..UiState::default() };
             fresh.sync_mode_dock();
             assert_eq!((&ui.dock, &ui.inactive_mode_dock), (&fresh.dock, &fresh.inactive_mode_dock), "baking: {baking}");
-            assert_eq!((ui.layout, ui.uv_zoom, ui.wireframe_3d, ui.mode), (ViewLayout::Only3D, 3.0, true, mode));
+            assert_eq!((ui.layout, ui.uv_zoom, ui.mesh_wireframe, ui.mode), (ViewLayout::Only3D, 3.0, true, mode));
             assert_eq!(ui.recent, vec!["a.tcraft".to_string()]);
         }
+    }
+
+    #[test]
+    fn a_saved_state_with_the_old_3d_wireframe_switch_keeps_it_as_the_one_mesh_wireframe_switch() {
+        let mut saved = serde_json::to_value(UiState::default()).unwrap();
+        let fields = saved.as_object_mut().unwrap();
+        assert_eq!((fields.remove("mesh_wireframe"), fields.remove("wireframe_opacity")), (Some(false.into()), Some(40.0.into())));
+        fields.insert("wireframe_3d".into(), true.into());
+        fields.insert("uv_wireframe".into(), true.into());
+
+        let loaded: UiState = serde_json::from_value(saved).unwrap();
+        assert!(loaded.mesh_wireframe);
+        assert_eq!(loaded.wireframe_opacity, 40.0);
+        assert!(loaded.uv_tile_info);
+
+        let fresh = UiState::default();
+        assert!(!fresh.mesh_wireframe, "off by default, the UV wireframe too");
+        assert_eq!(fresh.wireframe_opacity, 40.0);
     }
 
     #[test]

@@ -162,6 +162,8 @@ pub struct Shade {
     pub grain: f32,
     /// Draw the mesh edges over the shaded 3D view (depth tested).
     pub wireframe_3d: bool,
+    /// Opacity of the 3D wireframe and the UV wireframe, 0..1.
+    pub wireframe_opacity: f32,
     /// One texture set's mesh edges in a highlight color over the 3D view (the set under a shelf drag)
     pub highlight: Option<SetHighlight>,
     /// Specular/glossiness shading: base color is the diffuse color and the Specular channel the
@@ -267,6 +269,7 @@ impl Default for Shade {
             sharpen: 0.0,
             grain: 0.0,
             wireframe_3d: false,
+            wireframe_opacity: 0.4,
             highlight: None,
             spec_gloss: false,
             parallax: false,
@@ -2058,7 +2061,7 @@ impl Renderer {
             env: [s.env_rotation_deg.to_radians(), (ENV_LEVELS - 1) as f32, s.ao_intensity, 0.0],
             sh: self.sh,
             mode: [s.view_mode as f32, s.channel as f32, s.height_strength, s.normal_y],
-            bg: [s.env_opacity, s.env_blur * (ENV_LEVELS - 1) as f32, uv_view, 0.0],
+            bg: [s.env_opacity, s.env_blur * (ENV_LEVELS - 1) as f32, uv_view, s.wireframe_opacity.clamp(0.0, 1.0)],
             uv_xform,
             uv_rotation,
             light: [light.x, light.y, light.z, lw],
