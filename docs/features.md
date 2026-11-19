@@ -220,6 +220,7 @@ Everything TextureCraft does today, by area. What's still missing is in [`ROADMA
   (worker threads, cores kept for the UI, RAM while saving, project size on open) and the autosave
   interval. Shortcuts rebinds any command in the sections Actions, Mouse shortcuts and Modifiers shortcuts (Delete clears a binding, a shared shortcut warns and keeps OK disabled, Reset all to default restores every key); the window reopens on the page it was closed on. Libraries adds or removes folders whose saved smart
   materials and masks the shelf lists.
+- The **shortcut list** (Settings › Shortcuts and Help › Shortcuts list) names the actions as the reference does and starts with its default keys (Switch to baking mode Ctrl+Shift+B, Select next and previous camera `>` and `<`, Viewers layout F1 to F4); Show mesh wireframe is a bindable command.
 - A **shortcut editor** with conflict detection, listing every menu item and every command a key can run (commands that need a path, name or similar are left out), and every shortcut shown in its tooltip.
 - **Help menu:** Release notes... opens the project's releases page in the browser; Export log... saves the whole log (every channel, one line each with time and level) to a text file chosen in a save dialog.
 - A **History** panel: click any step to go back to it, or forward again to an undone one.

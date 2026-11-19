@@ -366,13 +366,14 @@ fn a_shared_shortcut_warns_by_name_and_keeps_ok_disabled_until_it_is_gone() {
     h.run_steps(3);
     assert!(h.state().ui.windows.settings, "a disabled OK keeps the window open");
 
-    let warnings: Vec<_> = h.query_all_by_label(egui_phosphor::regular::WARNING).collect();
-    assert!(warnings.len() >= 2, "both rows carry a warning: {}", warnings.len());
-    // The warning of the Save row names Undo; Undo's own row is a label too
-    let undo_labels = h.query_all_by_label("Undo").count();
+    let warnings = h.query_all_by_label(egui_phosphor::regular::WARNING).count();
+    assert!(warnings >= 2, "both rows carry a warning: {warnings}");
+    // Hovering a warning shows the other action's name next to its own row
+    let names = |h: &Harness<'_, TextureCraftApp>| h.query_all_by_label("Undo").count() + h.query_all_by_label(save.label).count();
+    let before = names(&h);
     h.query_all_by_label(egui_phosphor::regular::WARNING).next().unwrap().hover();
     h.run_steps(6);
-    assert_eq!(h.query_all_by_label("Undo").count(), undo_labels + 1, "the tooltip names the other action");
+    assert_eq!(names(&h), before + 1, "the tooltip names the other action");
 
     // Clearing the new binding ends the conflict
     click(&mut h, &format!("Edit the shortcut of {}", save.label));

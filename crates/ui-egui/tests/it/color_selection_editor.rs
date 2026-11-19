@@ -120,7 +120,7 @@ fn pick_mode_shows_the_id_map_and_a_click_on_the_mesh_adds_its_color() {
 #[test]
 fn without_an_id_map_picking_is_off_and_a_warning_says_why() {
     let (mut harness, _) = app_with_color_selection(false);
-    let warning = format!("{} Bake an ID map (F8) to pick colors from the mesh.", egui_phosphor::regular::WARNING);
+    let warning = format!("{} Bake an ID map (Ctrl+Shift+B) to pick colors from the mesh.", egui_phosphor::regular::WARNING);
     assert!(harness.query_by_label(&warning).is_some());
 
     harness.get_by_label(&pick_color_label()).click();

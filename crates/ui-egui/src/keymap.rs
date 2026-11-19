@@ -29,7 +29,57 @@ pub struct Binding {
 
 /// Rows the reference lists whose function TextureCraft does not have yet, as (listed before the
 /// row of this id, action, shortcut). Settings > Shortcuts shows them disabled.
-pub const NOT_AVAILABLE_ACTIONS: &[(&str, &str, &str)] = &[];
+pub const NOT_AVAILABLE_ACTIONS: &[(&str, &str, &str)] =
+    &[("file.reimportMesh", "Pause Engine Computation", "Shift+Esc"), ("viewport.frame", "Toggle animation", "Space")];
+
+/// An item of the shortcut list under the name and key the reference lists it with. The menus keep
+/// their own texts; Quit keeps Ctrl+Q, where the reference has no key.
+struct Listed {
+    id: &'static str,
+    label: &'static str,
+    default: Option<&'static str>,
+}
+
+const fn listed(id: &'static str, label: &'static str, default: Option<&'static str>) -> Listed {
+    Listed { id, label, default }
+}
+
+/// The shortcut list's first rows, in the reference's order. The `>` and `<` of the reference are
+/// the shifted Period and Comma keys.
+const LISTED: &[Listed] = &[
+    listed("ui.hideUi", "Hide UI", Some("Tab")),
+    listed("edit.undo", "Undo", Some("Ctrl+Z")),
+    listed("edit.redo", "Redo", Some("Ctrl+Y")),
+    listed("file.open", "Open project", Some("Ctrl+O")),
+    listed("file.close", "Close project", Some("Ctrl+F4")),
+    listed("file.save", "Save project", Some("Ctrl+S")),
+    listed("file.saveAs", "Save as project", Some("Ctrl+Shift+S")),
+    listed("ui.newProject", "New project", Some("Ctrl+N")),
+    listed("ui.quit", "Quit application", Some("Ctrl+Q")),
+    listed("ui.export", "Export Textures...", Some("Ctrl+Shift+E")),
+    listed("file.reimportMesh", "Reimport mesh", Some("Ctrl+Shift+R")),
+    listed("ui.mode.bake", "Switch to baking mode", Some("Ctrl+Shift+B")),
+    listed("ui.mode.paint", "Switch to edition mode", Some("F9")),
+    listed("ui.mode.render", "Switch to visualisation mode (Iray)", Some("F10")),
+    listed("ui.wireframe", "Show mesh wireframe", None),
+    listed("camera.perspective", "Camera projection: Perspective view", Some("F5")),
+    listed("camera.orthographic", "Camera projection: Orthographic view", Some("F6")),
+    listed("viewport.nextChannel", "Display next channel", Some("C")),
+    listed("viewport.previousChannel", "Display previous channel", Some("Shift+C")),
+    listed("viewport.displayMaterial", "Display material", Some("M")),
+    listed("viewport.nextMeshMap", "Display next mesh map", Some("B")),
+    listed("viewport.previousMeshMap", "Display previous mesh map", Some("Shift+B")),
+    listed("viewport.frame", "Show entire mesh/path", Some("F")),
+    listed("camera.next", "Select next camera", Some("Shift+Period")),
+    listed("camera.previous", "Select previous camera", Some("Shift+Comma")),
+    listed("viewport.quickMask", "Enable quick mask", Some("Y")),
+    listed("viewport.quickMask.edit", "Edit quick mask", Some("U")),
+    listed("viewport.quickMask.invert", "Invert quick mask", Some("Ctrl+Shift+I")),
+    listed("ui.layout.split", "Viewers layout: 3D/2D", Some("F1")),
+    listed("ui.layout.3d", "Viewers layout: 3D only", Some("F2")),
+    listed("ui.layout.2d", "Viewers layout: 2D only", Some("F3")),
+    listed("ui.layout.swap", "Viewers layout: Swap 3D/2D", Some("F4")),
+];
 
 /// The menu a command without a menu entry is listed under, from its id.
 fn group_of(id: &str) -> &'static str {
@@ -50,6 +100,13 @@ pub fn bindings() -> &'static [Binding] {
     static ALL: std::sync::OnceLock<Vec<Binding>> = std::sync::OnceLock::new();
     ALL.get_or_init(|| {
         let mut v: Vec<Binding> = Vec::new();
+        for l in LISTED {
+            let group = match CATALOG.iter().find(|i| i.id == l.id) {
+                Some(item) => item.menu,
+                None => texturecraft_engine::command_specs().iter().find(|c| c.id == l.id).and_then(|c| c.menu.first().copied()).unwrap_or("Viewport"),
+            };
+            v.push(Binding { id: l.id, group, label: l.label, default: l.default });
+        }
         for i in CATALOG.iter().filter(|i| i.label != "-") {
             if !v.iter().any(|b| b.id == i.id) {
                 v.push(Binding { id: i.id, group: i.menu, label: i.label, default: i.shortcut });
@@ -598,7 +655,7 @@ mod tests {
         sync_captured(&keymap);
         let ctrl = Modifiers { ctrl: true, command: true, ..Modifiers::NONE };
         assert!(captured(ctrl, Key::S) && captured(ctrl, Key::O) && captured(ctrl, Key::D));
-        assert!(captured(Modifiers::NONE, Key::F8) && captured(Modifiers::ALT, Key::W));
+        assert!(captured(Modifiers::NONE, Key::F9) && captured(Modifiers::ALT, Key::W));
         assert!(!captured(ctrl, Key::C) && !captured(ctrl, Key::V) && !captured(ctrl, Key::X), "clipboard keys reach the browser");
         assert!(!captured(Modifiers::NONE, Key::M) && !captured(Modifiers::NONE, Key::F), "plain keys need no capture");
     }
