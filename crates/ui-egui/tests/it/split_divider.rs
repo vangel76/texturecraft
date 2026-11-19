@@ -222,9 +222,12 @@ fn dragging_the_divider_keeps_the_uv_texture_size_and_offset_on_screen() {
         harness.run_steps(2);
         assert_unchanged(&harness);
 
-        // Inside the wheel's 0.1 to 40 range, so the next scroll in the narrow view can't snap the zoom
+        // Inside the wheel's zoom range, so the next scroll in the narrow view can't snap the zoom
         let stopped_zoom = harness.state().ui.uv_zoom;
-        assert!((0.1..=40.0).contains(&stopped_zoom), "zoom {zoom} stopped at {stopped_zoom}");
+        assert!(
+            (texturecraft_render::UV_VIEW_MIN_ZOOM..=texturecraft_render::UV_VIEW_MAX_ZOOM).contains(&stopped_zoom),
+            "zoom {zoom} stopped at {stopped_zoom}"
+        );
     }
 }
 

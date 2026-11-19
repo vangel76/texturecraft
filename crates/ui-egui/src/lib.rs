@@ -112,6 +112,7 @@ pub mod unavailable;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod updates_ui;
 pub mod uv_paint_point;
+mod uv_view_map;
 pub mod viewport;
 pub mod web_files;
 pub mod widgets;
@@ -172,6 +173,10 @@ pub struct TextureCraftApp {
     camera_glide: Option<CameraGlide>,
     /// Yaw and pitch an Alt+Shift drag has reached before snapping to 90° steps (see `viewport`).
     orbit_snap: Option<(f32, f32)>,
+    /// The 2D view's turn an Alt+Shift drag has reached before snapping to steps (see `viewport`).
+    uv_rotation_snap: Option<f32>,
+    /// Frame the 2D view at its next draw (F): pan, zoom and rotation back, on tile 1001 in a UV tile set
+    uv_view_reset: bool,
     pub ui: UiState,
     /// Where `ui` is saved between runs
     ui_store: ui_state_store::UiStateStore,
@@ -287,6 +292,8 @@ impl TextureCraftApp {
         let mut app = TextureCraftApp {
             camera_glide: None,
             orbit_snap: None,
+            uv_rotation_snap: None,
+            uv_view_reset: false,
             session,
             ui,
             ui_store,
@@ -386,6 +393,12 @@ impl TextureCraftApp {
                     self.pbr_import = None;
                     self.resize = None;
                     self.layer_panel = Default::default();
+                }
+
+                // F frames the 2D view too: the next draw resets its pan, zoom and rotation
+                // (only while the 2D view can be drawn: not in the 3D-only layout or outside painting)
+                if id == "viewport.frame" && self.ui.layout != state::ViewLayout::Only3D && self.ui.mode == state::Mode::Painting {
+                    self.uv_view_reset = true;
                 }
 
                 // The empty state has no baking or rendering to show

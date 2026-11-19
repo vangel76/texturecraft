@@ -183,3 +183,16 @@ constrained / free (trackball) rotation, the "Camera snap rotate" commands next 
 Alt+Shift+left drag (which already existed), bindable next / previous saved camera (the
 Ctrl+1 ... Ctrl+9 slots stay), and the "Normal+height+mesh" entry of the view picker.
 Free rotation uses the same Alt+left drag (and right drag) as the constrained one.
+
+## 2D view navigation (2026-11-19)
+
+Closes [#682](https://github.com/storytold/texturecraft/issues/682). The 2D view takes the reference's camera mouse
+bindings: Alt+left drag turns the view about its centre and the U/V gizmo turns with it, Alt+Shift+left drag turns in
+steps, Alt+right drag zooms (100 points right: 760 to 860 px, 100 points up: 760 to 704 px), Alt+middle and
+Ctrl+Alt+left drag pan 1:1, and the wheel zooms toward the cursor. F ("Show entire mesh") resets pan, zoom and rotation
+of the 2D view, and frames tile 1001 in a UV tile set. The zoom reaches about ×220 and about 2 px per tile. Our plain
+middle drag and the double-click reset stay (the double click also clears the rotation). Ctrl+Alt+left no longer adjusts
+the brush (Ctrl+left still does), so it can pan.
+
+Not measured in the reference, so chosen here: the turn speed (the 3D orbit's, from a horizontal drag), the snap step
+(90°) and the turn's centre (the view's centre).

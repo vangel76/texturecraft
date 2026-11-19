@@ -190,6 +190,7 @@ Everything TextureCraft does today, by area. What's still missing is in [`ROADMA
   bound in Settings), and the **Normal+height+mesh** view in the view picker. Orbit, pan and zoom buttons in the corner of each view do the same with a
   plain drag, so a pen and tablet can navigate without a keyboard or wheel (Viewport menu ▸
   Navigation buttons hides them).
+- **2D view navigation** uses the camera mouse bindings: Alt+left drag turns the view freely (the U/V gizmo turns with it) and Alt+Shift+left snaps the turn to 90° steps, Alt+right drag zooms, Alt+middle drag and Ctrl+Alt+left drag pan 1:1, the wheel zooms toward the cursor, and F resets pan, zoom and rotation (it frames tile 1001 in a UV tile set). The zoom reaches about ×220 in and about 2 px per tile out. Plain middle drag and a double click (reset) stay as extras.
 - **Perspective (F5) or orthographic (F6)** projection, and **front, back, left, right, top and
   bottom views** that frame the mesh (Viewport menu; bind your own keys in Settings).
 - **3D and UV wireframes** that show the mesh's own polygons: quads and n-gons from OBJ, FBX,

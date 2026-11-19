@@ -255,7 +255,7 @@ mod tests {
         };
         let cam = s.camera;
         // A 2:1 atlas fills a 2:1 view's middle 92%: tile 1001 left of center, 1002 right.
-        let (w, _, px) = gpu.render(&mut s, ViewKind::Uv { ts: 0, zoom: 1.0, pan: [0.0, 0.0] }, [200, 100], cam).unwrap();
+        let (w, _, px) = gpu.render(&mut s, ViewKind::Uv { ts: 0, zoom: 1.0, pan: [0.0, 0.0], rotation: 0.0 }, [200, 100], cam).unwrap();
         let at = |x: u32, y: u32| px.get(((y * w + x) * 4) as usize..((y * w + x) * 4 + 3) as usize).unwrap().to_vec();
         let red = |p: &[u8]| i32::from(p[0]) - i32::from(p[1]) > 60;
         let (left, right) = (at(77, 50), at(123, 50));

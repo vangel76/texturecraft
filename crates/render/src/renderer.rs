@@ -94,6 +94,7 @@ struct GlobalsRaw {
     bake_neutral_color: [f32; 4],
     bake_neutral: [f32; 4],
     bake_bent_normal: [f32; 4],
+    uv_rotation: [f32; 4],
 }
 
 /// The post pass uniform (see `Post` in post.wgsl).
@@ -285,8 +286,9 @@ impl Default for Shade {
 pub enum ViewKind {
     /// The 3D viewport.
     Scene,
-    /// The 2D UV view of texture set `ts`: zoom (1 = fit) and pan (clip-space offset).
-    Uv { ts: usize, zoom: f32, pan: [f32; 2] },
+    /// The 2D UV view of texture set `ts`: zoom (1 = fit), pan (clip-space offset) and rotation
+    /// (radians, counter-clockwise on screen, turning the UV square about its centre before the pan).
+    Uv { ts: usize, zoom: f32, pan: [f32; 2], rotation: f32 },
 }
 
 /// One view to render this frame.
@@ -315,11 +317,17 @@ fn mip_count(size: u32) -> u32 {
     32 - size.max(1).leading_zeros()
 }
 
+/// Lowest 2D zoom: the UV tile shrinks to about 2 px, as in the reference app (about 62 wheel notches out)
+pub const UV_VIEW_MIN_ZOOM: f32 = 0.0026;
+
+/// Highest 2D zoom: about ×220 of the fit, as in the reference app (54 wheel notches in)
+pub const UV_VIEW_MAX_ZOOM: f32 = 220.0;
+
 /// Clip-space half extents of the 2D view's UV square in a view of `aspect` (width / height)
 /// at `zoom`: fit into the view and stretched to the set's `size` (a UV tile atlas is wider or
 /// taller), keeping texels square.
 pub fn uv_view_scale(aspect: f32, zoom: f32, size: (u32, u32)) -> [f32; 2] {
-    let z = zoom.clamp(0.05, 64.0) * 0.92;
+    let z = zoom.clamp(UV_VIEW_MIN_ZOOM, UV_VIEW_MAX_ZOOM) * 0.92;
     let (sx, sy) = if aspect >= 1.0 { (z / aspect, z) } else { (z, z * aspect) };
     let a = size.0.max(1) as f32 / size.1.max(1) as f32;
     if a >= 1.0 { [sx, sy / a] } else { [sx * a, sy] }
@@ -1989,11 +1997,12 @@ impl Renderer {
             vp = Mat4::from_translation(Vec3::new(2.0 * jx / frame.size[0].max(1) as f32, 2.0 * jy / frame.size[1].max(1) as f32, 0.0)) * vp;
         }
         let s = &frame.shade;
-        let (uv_view, uv_xform) = match frame.kind {
-            ViewKind::Scene => (0.0, [1.0, 1.0, 0.0, 0.0]),
-            ViewKind::Uv { ts, zoom, pan } => {
+        let (uv_view, uv_xform, uv_rotation) = match frame.kind {
+            ViewKind::Scene => (0.0, [1.0, 1.0, 0.0, 0.0], [1.0, 0.0, 1.0, 0.0]),
+            ViewKind::Uv { ts, zoom, pan, rotation } => {
                 let [sx, sy] = uv_view_scale(aspect, zoom, self.sets.get(ts).map_or((1, 1), |s| s.size));
-                (1.0, [sx, sy, pan[0], pan[1]])
+                let (sin, cos) = rotation.sin_cos();
+                (1.0, [sx, sy, pan[0], pan[1]], [cos, sin, aspect, 0.0])
             }
         };
 
@@ -2051,6 +2060,7 @@ impl Renderer {
             mode: [s.view_mode as f32, s.channel as f32, s.height_strength, s.normal_y],
             bg: [s.env_opacity, s.env_blur * (ENV_LEVELS - 1) as f32, uv_view, 0.0],
             uv_xform,
+            uv_rotation,
             light: [light.x, light.y, light.z, lw],
             light_vp: shadow_vp.unwrap_or(Mat4::IDENTITY).to_cols_array_2d(),
             // Offset by 1.5 shadow texels to avoid self-shadowing

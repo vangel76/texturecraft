@@ -85,7 +85,7 @@ fn renders_the_material_ball() {
     let img = render(&mut h, &frame, "headless_ball");
     assert_ne!(img.at(240, 140), img.at(5, 5), "mesh should differ from background");
     // UV view of set 0.
-    let uv = Frame { view_id: 2, kind: ViewKind::Uv { ts: 0, zoom: 1.0, pan: [0.0, 0.0] }, ..frame.clone() };
+    let uv = Frame { view_id: 2, kind: ViewKind::Uv { ts: 0, zoom: 1.0, pan: [0.0, 0.0], rotation: 0.0 }, ..frame.clone() };
     let uv_img = render(&mut h, &uv, "headless_uv");
     assert_eq!(uv_img.px.len(), img.px.len());
     let wire = render(&mut h, &shaded(&uv, |s| s.wireframe = true), "headless_uv_wire");
@@ -439,7 +439,7 @@ fn bake_visualization_draws_the_high_poly_and_the_cage() {
         seams.px,
         "the seams' color reaches the shader"
     );
-    let uv = Frame { view_id: 2, kind: ViewKind::Uv { ts: 0, zoom: 1.0, pan: [0.0, 0.0] }, ..frame.clone() };
+    let uv = Frame { view_id: 2, kind: ViewKind::Uv { ts: 0, zoom: 1.0, pan: [0.0, 0.0], rotation: 0.0 }, ..frame.clone() };
     let uv_plain = render(&mut h, &shaded(&uv, |s| s.bake = Some(bake)), "bake_missing_seams_uv_off");
     let uv_seams = render(&mut h, &shaded(&uv, |s| s.bake = Some(BakeVisualization { missing_seams: green_seams, ..bake })), "bake_missing_seams_uv");
     assert_ne!(uv_seams.px, uv_plain.px, "the seams show in the 2D view too");

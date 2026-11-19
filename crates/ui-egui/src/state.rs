@@ -439,6 +439,9 @@ pub struct UiState {
     pub windows: Windows,
     pub uv_zoom: f32,
     pub uv_pan: [f32; 2],
+    /// The 2D view's turn, counter-clockwise on screen in radians (Alt+left drag)
+    #[serde(default)]
+    pub uv_rotation: f32,
     /// Channel whose blending the layer rows show.
     pub layer_channel: Channel,
     pub shelf_filter: String,
@@ -596,6 +599,7 @@ impl Default for UiState {
             windows: Windows::default(),
             uv_zoom: 1.0,
             uv_pan: [0.0, 0.0],
+            uv_rotation: 0.0,
             layer_channel: Channel::BaseColor,
             blend_clipboard: None,
             shelf_filter: String::new(),

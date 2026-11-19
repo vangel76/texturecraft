@@ -34,6 +34,7 @@ struct Globals {
     bake_neutral_color: vec4<f32>, // rgb the neutral material's color, a its reflection samples this frame
     bake_neutral: vec4<f32>, // x roughness, y metallic, z AO intensity of the neutral material, w on (1)
     bake_bent_normal: vec4<f32>, // x, y how much the bent normal (in the aux texture) turns the diffuse light and dims reflections, zw -
+    uv_rotation: vec4<f32>, // UV view: x cos, y sin of the view rotation (counter-clockwise on screen), z view aspect (width / height), w -
 };
 
 @group(0) @binding(0) var<uniform> g: Globals;
@@ -94,7 +95,14 @@ fn vs_mesh(v: VIn) -> VOut {
 @vertex
 fn vs_uv(v: VIn) -> VOut {
     var o: VOut;
-    let p = vec2<f32>(v.uv.x * 2.0 - 1.0, 1.0 - v.uv.y * 2.0) * g.uv_xform.xy + g.uv_xform.zw;
+    let scaled = vec2<f32>(v.uv.x * 2.0 - 1.0, 1.0 - v.uv.y * 2.0) * g.uv_xform.xy;
+
+    // The rotation turns the square in pixels, not in clip space, so it stays square on a wide view
+    let aspect = g.uv_rotation.z;
+    let c = g.uv_rotation.x;
+    let s = g.uv_rotation.y;
+    let turned = vec2<f32>((c * scaled.x * aspect - s * scaled.y) / aspect, s * scaled.x * aspect + c * scaled.y);
+    let p = turned + g.uv_xform.zw;
     o.clip = vec4<f32>(p, 0.5, 1.0);
     o.wpos = v.pos;
     o.nrm = v.nrm;

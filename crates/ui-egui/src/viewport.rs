@@ -231,11 +231,22 @@ fn split_divider_x(app: &mut TextureCraftApp, ui: &Ui, full: Rect) -> f32 {
     divider_x(app.ui.split_ratio)
 }
 
-/// Lowest 2D zoom, for the wheel and the divider (inside the renderer's own limit of 0.05)
-pub(crate) const UV_VIEW_MIN_ZOOM: f32 = 0.1;
+/// Lowest 2D zoom, for the wheel and the divider: a tile of about 2 px, as measured in the reference app
+pub(crate) const UV_VIEW_MIN_ZOOM: f32 = texturecraft_render::UV_VIEW_MIN_ZOOM;
 
-/// Highest 2D zoom, for the wheel and the divider (inside the renderer's own limit of 64)
-pub(crate) const UV_VIEW_MAX_ZOOM: f32 = 40.0;
+/// Highest 2D zoom, for the wheel and the divider: about ×220 of the fit, as measured in the reference app
+pub(crate) const UV_VIEW_MAX_ZOOM: f32 = texturecraft_render::UV_VIEW_MAX_ZOOM;
+
+/// 2D view turn per point of an Alt+left drag (radians): the 3D orbit's speed
+const UV_RADIANS_PER_POINT: f32 = ORBIT_RADIANS_PER_POINT;
+
+/// Step of an Alt+Shift+left drag's turn of the 2D view (radians)
+const UV_SNAP_RADIANS: f32 = std::f32::consts::FRAC_PI_2;
+
+/// Alt+right drag in the 2D view: change of the log zoom per point dragged right and per point dragged down.
+/// Fitted to the reference app's measurements: 100 points right 760 -> 860 px, 100 points up 760 -> 704 px.
+const UV_DRAG_ZOOM_PER_POINT_RIGHT: f32 = 0.001236;
+const UV_DRAG_ZOOM_PER_POINT_DOWN: f32 = 0.00077;
 
 /// UV zoom change per point of mouse wheel, as a fraction of the zoom
 pub(crate) const UV_WHEEL_ZOOM_PER_POINT: f32 = 0.002;
@@ -630,15 +641,23 @@ fn mask_view_badge(app: &TextureCraftApp, ui: &Ui, rect: Rect) {
     );
 }
 
-fn axis_gizmo(ui: &Ui, rect: Rect, app: &TextureCraftApp, uv: bool) {
+/// The screen directions of the U axis (right) and the V axis (up) in a 2D view turned `rotation` radians counter-clockwise
+fn uv_axis_directions(rotation: f32) -> (egui::Vec2, egui::Vec2) {
+    let (sin, cos) = rotation.sin_cos();
+    (vec2(cos, -sin), vec2(-sin, -cos))
+}
+
+fn axis_gizmo(ui: &Ui, rect: Rect, app: &TextureCraftApp, uv_rotation: Option<f32>) {
     let tk = Tokens::get(ui.ctx());
     let o = pos2(rect.left() + 28.0, rect.bottom() - 28.0);
     let p = ui.painter();
-    if uv {
-        p.line_segment([o, o + vec2(16.0, 0.0)], Stroke::new(1.5, Color32::from_rgb(0xd8, 0x4a, 0x3a)));
-        p.line_segment([o, o - vec2(0.0, 16.0)], Stroke::new(1.5, Color32::from_rgb(0x5c, 0xc0, 0x4a)));
-        p.text(o + vec2(20.0, 0.0), egui::Align2::LEFT_CENTER, "U", egui::FontId::proportional(9.0), tk.viewport_text);
-        p.text(o - vec2(0.0, 22.0), egui::Align2::CENTER_CENTER, "V", egui::FontId::proportional(9.0), tk.viewport_text);
+    if let Some(rotation) = uv_rotation {
+        // The U and V axes turn with the 2D view
+        let (u, v) = uv_axis_directions(rotation);
+        p.line_segment([o, o + u * 16.0], Stroke::new(1.5, Color32::from_rgb(0xd8, 0x4a, 0x3a)));
+        p.line_segment([o, o + v * 16.0], Stroke::new(1.5, Color32::from_rgb(0x5c, 0xc0, 0x4a)));
+        p.text(o + u * 22.0, egui::Align2::CENTER_CENTER, "U", egui::FontId::proportional(9.0), tk.viewport_text);
+        p.text(o + v * 22.0, egui::Align2::CENTER_CENTER, "V", egui::FontId::proportional(9.0), tk.viewport_text);
         return;
     }
     let view = app.session.camera.view();
@@ -1075,7 +1094,7 @@ fn view_3d(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, sync: &mut Pendin
     solo_notice(app, ui, rect);
     view_header(app, ui, rect, "v3d");
     mask_view_badge(app, ui, rect);
-    axis_gizmo(ui, rect, app, false);
+    axis_gizmo(ui, rect, app, None);
     crate::nav_buttons::show(app, ui, rect, crate::nav_buttons::NavView::Scene);
 }
 
@@ -1957,7 +1976,7 @@ fn brush_drag(app: &mut TextureCraftApp, ui: &Ui, response: &egui::Response) -> 
     let held = tool_acts(app)
         && brush_tool(app.session.tool.tool)
         && !app.session.stroke_active()
-        && ui.input(|input| input.modifiers.command && (!input.modifiers.shift || input.pointer.secondary_down()));
+        && ui.input(|input| input.modifiers.command && !input.modifiers.alt && (!input.modifiers.shift || input.pointer.secondary_down()));
     if held && let Some(right) = brush_drag_button(response) {
         let (delta, fine) = ui.input(|input| (input.pointer.delta(), input.modifiers.shift));
         adjust_brush(&mut app.session.tool.brush, right, if fine { delta * CTRL_DRAG_FINE_FACTOR } else { delta });
@@ -2163,19 +2182,80 @@ pub fn pen_pressure(ui: &Ui) -> f32 {
     }
 }
 
+/// F: puts the 2D view back to pan 0, zoom 1 and no rotation; in a UV tile set it frames tile 1001 (else the lowest tile)
+fn frame_uv_view_on_request(app: &mut TextureCraftApp, size: egui::Vec2) {
+    if !std::mem::take(&mut app.uv_view_reset) {
+        return;
+    }
+
+    let (zoom, pan) = app.session.doc.project.texture_sets.get(app.session.ts()).map_or((1.0, [0.0, 0.0]), |set| framed_tile_view(set, size));
+    app.ui.uv_zoom = zoom;
+    app.ui.uv_pan = pan;
+    app.ui.uv_rotation = 0.0;
+}
+
+/// The 2D zoom and pan that fit tile 1001 of a UV tile `set` (else its lowest tile) into a view of `size`; zoom 1 and no pan for a set without tiles
+fn framed_tile_view(set: &texturecraft_engine::core::TextureSet, size: egui::Vec2) -> (f32, [f32; 2]) {
+    let Some(grid) = set.tile_grid() else { return (1.0, [0.0, 0.0]) };
+    let tile = if set.uv_tiles.contains(&1001) { 1001 } else { set.uv_tiles.iter().copied().min().unwrap_or(1001) };
+    let Some((block_x, block_y)) = grid.block(tile) else { return (1.0, [0.0, 0.0]) };
+
+    // The tile's square inside its atlas block, and the zoom that lets it fill what the whole atlas fills at zoom 1
+    let tile_scale = set.tile_scale(tile);
+    let zoom = (grid.cols.max(grid.rows) as f32 / tile_scale).clamp(UV_VIEW_MIN_ZOOM, UV_VIEW_MAX_ZOOM);
+    let center = ((block_x as f32 + tile_scale * 0.5) / grid.cols as f32, (block_y as f32 + tile_scale * 0.5) / grid.rows as f32);
+    let [scale_x, scale_y] = texturecraft_render::uv_view_scale(size.x / size.y.max(1.0), zoom, set.size());
+    (zoom, [-(center.0 * 2.0 - 1.0) * scale_x, -(1.0 - center.1 * 2.0) * scale_y])
+}
+
 /// The 2D (UV) view: navigation, painting in texture coordinates and the overlays drawn over the texture.
 fn view_2d(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, sync: &mut PendingSync) {
     let tokens = Tokens::get(ui.ctx());
     let response = ui.interact(rect, ui.scope_id().with("view2d"), Sense::click_and_drag());
     let size = rect.size();
     let (alt, shift, snap) = ui.input(|input| (input.modifiers.alt, input.modifiers.shift, input.modifiers.shift && input.modifiers.command));
+    let ctrl = ui.input(|input| input.modifiers.ctrl);
     let adjusting = brush_drag(app, ui, &response);
+    frame_uv_view_on_request(app, size);
 
-    // Pan with a middle drag or Alt+left drag, zoom with the wheel about the cursor
+    // Pan with a middle drag (with or without Alt) or Ctrl+Alt+left drag, turn with Alt+left drag (Alt+Shift snaps),
+    // zoom with Alt+right drag or the wheel about the cursor
     let delta = ui.input(|input| input.pointer.delta());
-    if response.dragged_by(PointerButton::Middle) || (alt && response.dragged_by(PointerButton::Primary)) {
+    let ctrl_alt_pan = alt && ctrl && response.dragged_by(PointerButton::Primary);
+    if response.dragged_by(PointerButton::Middle) || ctrl_alt_pan {
         app.ui.uv_pan[0] += delta.x / size.x * 2.0;
         app.ui.uv_pan[1] -= delta.y / size.y * 2.0;
+    }
+    let turning = alt && !ctrl && response.dragged_by(PointerButton::Primary);
+    if turning {
+        let radians = -delta.x * UV_RADIANS_PER_POINT * app.ui.prefs.orbit_scale();
+        if shift {
+            // The drag's own turn follows the pointer; the view takes the nearest step
+            let reached = app.uv_rotation_snap.get_or_insert(app.ui.uv_rotation);
+            *reached += radians;
+            let snapped = (*reached / UV_SNAP_RADIANS).round() * UV_SNAP_RADIANS;
+            let step = snapped - app.ui.uv_rotation;
+            let wrapped = (step + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+            crate::uv_view_map::turn_about_center(&mut app.ui.uv_rotation, &mut app.ui.uv_pan, size, wrapped);
+        } else {
+            crate::uv_view_map::turn_about_center(&mut app.ui.uv_rotation, &mut app.ui.uv_pan, size, radians);
+        }
+    }
+
+    // The next snapping drag starts again from where the view is
+    if !(turning && shift) {
+        app.uv_rotation_snap = None;
+    }
+    if alt && response.dragged_by(PointerButton::Secondary) {
+        let change = (delta.x * UV_DRAG_ZOOM_PER_POINT_RIGHT + delta.y * UV_DRAG_ZOOM_PER_POINT_DOWN) * app.ui.prefs.drag_zoom_scale();
+        let old_zoom = app.ui.uv_zoom;
+        let new_zoom = (old_zoom * change.exp()).clamp(UV_VIEW_MIN_ZOOM, UV_VIEW_MAX_ZOOM);
+
+        // About the view's centre
+        for axis in 0..2 {
+            app.ui.uv_pan[axis] *= new_zoom / old_zoom;
+        }
+        app.ui.uv_zoom = new_zoom;
     }
     if response.hovered() {
         size_brush_by_ctrl_wheel(app, ui);
@@ -2202,17 +2282,9 @@ fn view_2d(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, sync: &mut Pendin
     let texture_set_index = app.session.ts();
     let set = app.session.doc.project.texture_sets.get(texture_set_index);
     let [scale_x, scale_y] = texturecraft_render::uv_view_scale(size.x / size.y.max(1.0), app.ui.uv_zoom, set.map_or((1, 1), |texture_set| texture_set.size()));
-    let pan = app.ui.uv_pan;
-    let to_uv = |pointer: egui::Pos2| {
-        let clip_x = (pointer.x - rect.left()) / size.x * 2.0 - 1.0;
-        let clip_y = 1.0 - (pointer.y - rect.top()) / size.y * 2.0;
-        Vec2::new(((clip_x - pan[0]) / scale_x + 1.0) * 0.5, (1.0 - (clip_y - pan[1]) / scale_y) * 0.5)
-    };
-    let to_screen = |u: f32, v: f32| {
-        let clip_x = (u * 2.0 - 1.0) * scale_x + pan[0];
-        let clip_y = (1.0 - v * 2.0) * scale_y + pan[1];
-        pos2(rect.left() + (clip_x * 0.5 + 0.5) * size.x, rect.top() + (0.5 - clip_y * 0.5) * size.y)
-    };
+    let view_map = crate::uv_view_map::UvViewMap { rect, scale: [scale_x, scale_y], pan: app.ui.uv_pan, rotation: app.ui.uv_rotation };
+    let to_uv = |pointer: egui::Pos2| view_map.to_uv(pointer);
+    let to_screen = |u: f32, v: f32| view_map.to_screen(u, v);
     let show = |_: &TextureCraftApp, point: Vec3| Some(to_screen(point.x, point.y));
     let path_tool = app.session.tool.tool == Tool::Path;
 
@@ -2275,12 +2347,13 @@ fn view_2d(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, sync: &mut Pendin
     if response.double_clicked() && !(painting && path_tool) {
         app.ui.uv_zoom = 1.0;
         app.ui.uv_pan = [0.0, 0.0];
+        app.ui.uv_rotation = 0.0;
     }
 
     let frame = Frame {
         view_id: VIEW_2D,
         size: frame_size_in_pixels(ui, rect),
-        kind: ViewKind::Uv { ts: texture_set_index, zoom: app.ui.uv_zoom, pan: app.ui.uv_pan },
+        kind: ViewKind::Uv { ts: texture_set_index, zoom: app.ui.uv_zoom, pan: app.ui.uv_pan, rotation: app.ui.uv_rotation },
         camera: app.session.camera,
         shade: shade(app),
         visible: app.session.doc.project.texture_sets.iter().map(|texture_set| texture_set.visible).collect(),
@@ -2302,19 +2375,20 @@ fn view_2d(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, sync: &mut Pendin
     // The UV tile outlines (numbered for UDIM sets) and the path being edited
     let painter = ui.painter_at(rect);
     let set = app.session.doc.project.texture_sets.get(texture_set_index);
-    let outline = |tile: Rect| {
-        painter.rect_stroke(tile, 0.0, Stroke::new(UV_TILE_OUTLINE_WIDTH, Color32::from_white_alpha(UV_TILE_OUTLINE_ALPHA)), egui::StrokeKind::Outside)
+    let outline = |corners: [Pos2; 4]| {
+        painter.add(egui::Shape::closed_line(corners.to_vec(), Stroke::new(UV_TILE_OUTLINE_WIDTH, Color32::from_white_alpha(UV_TILE_OUTLINE_ALPHA))));
     };
+    let quad = |u0: f32, v0: f32, u1: f32, v1: f32| [to_screen(u0, v0), to_screen(u1, v0), to_screen(u1, v1), to_screen(u0, v1)];
     match set.and_then(|texture_set| Some((texture_set, texture_set.tile_grid()?))) {
         Some((texture_set, grid)) => {
             for (udim, (block_x, block_y)) in texture_set.uv_tiles.iter().filter_map(|udim| Some((*udim, grid.block(*udim)?))) {
                 // A tile smaller than its block fills the block's top-left corner
                 let (u0, v0) = (block_x as f32 / grid.cols as f32, block_y as f32 / grid.rows as f32);
                 let tile_scale = texture_set.tile_scale(udim);
-                let tile = Rect::from_two_pos(to_screen(u0, v0), to_screen(u0 + tile_scale / grid.cols as f32, v0 + tile_scale / grid.rows as f32));
+                let tile = quad(u0, v0, u0 + tile_scale / grid.cols as f32, v0 + tile_scale / grid.rows as f32);
                 outline(tile);
                 painter.text(
-                    tile.left_top() + UV_TILE_LABEL_OFFSET,
+                    tile[0] + UV_TILE_LABEL_OFFSET,
                     egui::Align2::LEFT_TOP,
                     udim.to_string(),
                     egui::FontId::proportional(UV_TILE_LABEL_SIZE),
@@ -2323,7 +2397,7 @@ fn view_2d(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, sync: &mut Pendin
             }
         }
         None => {
-            outline(Rect::from_two_pos(to_screen(0.0, 0.0), to_screen(1.0, 1.0)));
+            outline(quad(0.0, 0.0, 1.0, 1.0));
         }
     }
     if tool_acts(app) && path_tool {
@@ -2351,9 +2425,9 @@ fn view_2d(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, sync: &mut Pendin
     }
 
     if app.ui.mode == crate::state::Mode::Baking {
-        bake_paint_overlay(app, ui, &painter, to_screen(0.0, 1.0), to_screen(1.0, 0.0));
+        bake_paint_overlay(app, ui, &painter, &to_screen);
         if bake_paint_on && let Some(hover) = response.hover_pos() {
-            let radius = (to_screen(app.ui.bake_paint_brush.radius, 0.0).x - to_screen(0.0, 0.0).x).abs().max(BAKE_PAINT_CURSOR_MIN_RADIUS);
+            let radius = (to_screen(app.ui.bake_paint_brush.radius, 0.0) - to_screen(0.0, 0.0)).length().max(BAKE_PAINT_CURSOR_MIN_RADIUS);
             painter.circle_stroke(hover, radius, Stroke::new(BAKE_PAINT_CURSOR_STROKE, Color32::from_white_alpha(BAKE_PAINT_CURSOR_ALPHA)));
         }
     }
@@ -2378,7 +2452,7 @@ fn view_2d(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, sync: &mut Pendin
     {
         // Match the pressure-scaled radius used by continue_stroke_uv
         let radius_points =
-            (to_screen(app.session.tool.brush.uv_stamp_radius(pen_pressure(ui)), 0.0).x - to_screen(0.0, 0.0).x).abs().max(BRUSH_CURSOR_MIN_RADIUS_POINTS);
+            (to_screen(app.session.tool.brush.uv_stamp_radius(pen_pressure(ui)), 0.0) - to_screen(0.0, 0.0)).length().max(BRUSH_CURSOR_MIN_RADIUS_POINTS);
         if pointer_in_view {
             ui.ctx().set_cursor_icon(egui::CursorIcon::None);
         }
@@ -2388,7 +2462,7 @@ fn view_2d(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, sync: &mut Pendin
     solo_notice(app, ui, rect);
     view_header(app, ui, rect, "v2d");
     mask_view_badge(app, ui, rect);
-    axis_gizmo(ui, rect, app, true);
+    axis_gizmo(ui, rect, app, Some(app.ui.uv_rotation));
     crate::nav_buttons::show(app, ui, rect, crate::nav_buttons::NavView::Uv);
     let name = app.session.doc.project.texture_sets.get(texture_set_index).map(|texture_set| texture_set.name.clone()).unwrap_or_default();
     let name_position = rect.right_bottom() - SET_NAME_INSET;
@@ -2497,7 +2571,7 @@ fn bake_paint_input(app: &mut TextureCraftApp, ui: &Ui, resp: &egui::Response, t
 }
 
 /// The skew map as a translucent orange layer over the UV square from `top_left` to `bottom_right`.
-fn bake_paint_overlay(app: &TextureCraftApp, ui: &Ui, painter: &egui::Painter, top_left: egui::Pos2, bottom_right: egui::Pos2) {
+fn bake_paint_overlay(app: &TextureCraftApp, ui: &Ui, painter: &egui::Painter, to_screen: &dyn Fn(f32, f32) -> egui::Pos2) {
     let Some(k) = app.session.doc.bake_paint.get(&(app.session.ts(), app.ui.bake_paint_brush.target)).filter(|k| k.values.len() > 1) else { return };
     let key = (app.session.revision, std::sync::Arc::as_ptr(k) as usize);
     let id = ui.scope_id().with("bake_paint_overlay_texture");
@@ -2524,12 +2598,61 @@ fn bake_paint_overlay(app: &TextureCraftApp, ui: &Ui, painter: &egui::Painter, t
             tex
         }
     };
-    painter.image(tex.id(), Rect::from_two_pos(top_left, bottom_right), Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+    let mut mesh = egui::Mesh::with_texture(tex.id());
+    for (u, v) in [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)] {
+        mesh.vertices.push(egui::epaint::Vertex { pos: to_screen(u, v), uv: pos2(u, v), color: Color32::WHITE });
+    }
+    mesh.indices.extend([0, 1, 2, 0, 2, 3]);
+    painter.add(egui::Shape::mesh(mesh));
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn the_axis_gizmo_points_along_the_texture_s_u_and_v_edges_at_any_rotation() {
+        for rotation in [0.0, 0.6, std::f32::consts::FRAC_PI_2, 2.5, 4.0] {
+            let view = crate::uv_view_map::UvViewMap {
+                rect: Rect::from_min_size(Pos2::ZERO, egui::vec2(500.0, 300.0)),
+                scale: [0.4, 0.6],
+                pan: [0.2, -0.1],
+                rotation,
+            };
+            let (u, v) = uv_axis_directions(rotation);
+            let u_edge = (view.to_screen(1.0, 1.0) - view.to_screen(0.0, 1.0)).normalized();
+            let v_edge = (view.to_screen(0.0, 0.0) - view.to_screen(0.0, 1.0)).normalized();
+            assert!((u - u_edge).length() < 1e-4 && (v - v_edge).length() < 1e-4, "{rotation}: {u:?} {u_edge:?} / {v:?} {v_edge:?}");
+        }
+        let (u, v) = uv_axis_directions(std::f32::consts::FRAC_PI_2);
+        assert!((u - egui::vec2(0.0, -1.0)).length() < 1e-4 && (v - egui::vec2(-1.0, 0.0)).length() < 1e-4, "a counter-clockwise quarter turn: U up, V left");
+    }
+
+    #[test]
+    fn framing_tile_1001_centers_it_and_fits_it_like_a_single_tile_set() {
+        let mut set = texturecraft_engine::core::TextureSet::new("Tiles", 0, 128);
+        set.uv_tiles = vec![1001, 1002, 1011];
+        let size = egui::vec2(800.0, 600.0);
+        let (zoom, pan) = framed_tile_view(&set, size);
+
+        // Tile 1001 is the lower-left block of a 2 x 2 atlas
+        assert!((zoom - 2.0).abs() < 1e-4, "{zoom}");
+        let [scale_x, scale_y] = texturecraft_render::uv_view_scale(size.x / size.y, zoom, set.size());
+        let view = crate::uv_view_map::UvViewMap { rect: Rect::from_min_size(Pos2::ZERO, size), scale: [scale_x, scale_y], pan, rotation: 0.0 };
+        let center = view.to_screen(0.25, 0.75);
+        assert!((center - view.rect.center()).length() < 1e-2, "{center:?}");
+
+        // The tile fills the view as one tile alone would
+        let single = texturecraft_render::uv_view_scale(size.x / size.y, 1.0, (128, 128));
+        let tile_width = (view.to_screen(0.5, 0.75) - view.to_screen(0.0, 0.75)).length();
+        assert!((tile_width - single[0] * size.x).abs() < 1e-2, "{tile_width}");
+    }
+
+    #[test]
+    fn a_set_without_tiles_frames_the_whole_texture() {
+        let set = texturecraft_engine::core::TextureSet::new("Plain", 0, 128);
+        assert_eq!(framed_tile_view(&set, egui::vec2(800.0, 600.0)), (1.0, [0.0, 0.0]));
+    }
+
     use texturecraft_engine::paint::{AlphaParams, BrushAlpha, BrushSettings};
 
     fn extent(points: &[Vec2]) -> Vec2 {

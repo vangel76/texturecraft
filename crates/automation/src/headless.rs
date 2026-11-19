@@ -319,7 +319,7 @@ impl Headless {
         let session = &self.session;
         let kind = match options.view.as_deref().unwrap_or("3d") {
             "3d" => ViewKind::Scene,
-            "2d" | "uv" => ViewKind::Uv { ts: session.ts(), zoom: 1.0, pan: [0.0, 0.0] },
+            "2d" | "uv" => ViewKind::Uv { ts: session.ts(), zoom: 1.0, pan: [0.0, 0.0], rotation: 0.0 },
             other => return Err(bad(format!("unknown view `{other}` (3d, 2d or uv)"))),
         };
         let max_side = if self.trusted() { MAX_LOCAL_RENDER_SIDE } else { MAX_PNG_SIDE };
