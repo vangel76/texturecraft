@@ -382,6 +382,7 @@ fn remove(app: &mut TextureCraftApp, name: String) {
         if app.ui.export.preset == name {
             app.ui.export.preset = crate::state::ExportUi::default().preset;
         }
+        crate::export_window::template_renamed(&mut app.ui.export, &name, None);
         app.toast(trf("Deleted template \"{name}\"", &[("name", &name)]), false);
     }
 }
@@ -460,6 +461,7 @@ fn rename(app: &mut TextureCraftApp, name: &str) {
         && let Some(n) = r.get("name").and_then(Value::as_str)
     {
         app.ui.export.preset = n.to_string();
+        crate::export_window::template_renamed(&mut app.ui.export, &old, Some(n));
     }
 }
 

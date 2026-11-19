@@ -929,6 +929,37 @@ fn keep_file_type_visible(e: &mut ExportUi) {
     }
 }
 
+/// Template `old` was renamed to `new` (None: removed): texture set overrides that use it follow,
+/// in the settings the window opened with too, so Cancel restores a template that exists
+pub(crate) fn template_renamed(e: &mut ExportUi, old: &str, new: Option<&str>) {
+    let follow = |e: &mut ExportUi| {
+        if e.preset == old
+            && let Some(n) = new
+        {
+            e.preset = n.to_string();
+        }
+        for o in e.sets.values_mut() {
+            if o.preset.as_deref() == Some(old) {
+                o.preset = new.map(str::to_string);
+            }
+            if o.maps_template == old {
+                match new {
+                    Some(n) => o.maps_template = n.to_string(),
+                    None => {
+                        o.maps.clear();
+                        o.maps_template.clear();
+                    }
+                }
+            }
+        }
+        e.sets.retain(|_, o| !o.is_default());
+    };
+    follow(e);
+    if let Some(before) = e.opened_with.as_deref_mut() {
+        follow(before);
+    }
+}
+
 /// Go back to the settings the window opened with
 fn cancel(app: &mut TextureCraftApp) {
     if let Some(before) = app.ui.export.opened_with.take() {
@@ -940,6 +971,11 @@ fn cancel(app: &mut TextureCraftApp) {
         // A template deleted since keeps the default instead
         if app.session.export_preset(&before.preset).is_none() {
             before.preset = ExportUi::default().preset;
+        }
+        for o in before.sets.values_mut() {
+            if o.preset.as_deref().is_some_and(|p| app.session.export_preset(p).is_none()) {
+                o.preset = None;
+            }
         }
         app.ui.export = before;
     }

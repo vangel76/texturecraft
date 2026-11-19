@@ -155,3 +155,41 @@ fn the_preview_ignores_a_texture_sets_output_map_settings() {
     assert!(h.query_by_label_contains("Not saved").is_none(), "the preview plans the template on show");
     assert!(h.query_all_by_label_contains(egui_phosphor::regular::ARROW_RIGHT).count() >= 2, "both maps show their files");
 }
+
+#[test]
+fn texture_set_overrides_follow_a_renamed_template_and_drop_a_removed_one() {
+    let library = Library::new("follow");
+    let mut h = harness(&library);
+    let mut o = texturecraft_ui_egui::state::SetExport { preset: Some("Mine".into()), maps_template: "Mine".into(), ..Default::default() };
+    o.maps.insert(1, texturecraft_ui_egui::state::MapExport { enabled: false, file_type: None });
+    // The override is there when the window opens
+    h.state_mut().ui.windows.export = false;
+    h.run_steps(2);
+    h.state_mut().ui.export.sets.insert(0, o);
+    let ui = &mut h.state_mut().ui;
+    ui.windows.export = true;
+    ui.export.tab = 1;
+    ui.export.preset = "Mine".into();
+    h.run_steps(4);
+
+    // F2, a new name, Enter
+    h.key_press(egui::Key::F2);
+    h.run_steps(3);
+    h.state_mut().ui.export.renaming = Some("Yours".into());
+    h.key_press(egui::Key::Enter);
+    h.run_steps(4);
+    assert_eq!(h.state().ui.export.preset, "Yours");
+    let o = h.state().ui.export.sets[&0].clone();
+    assert_eq!((o.preset.as_deref(), o.maps_template.as_str()), (Some("Yours"), "Yours"), "the set keeps its template and map ticks");
+    assert_eq!(o.maps.len(), 1);
+
+    right_click(&mut h, "Yours");
+    click(&mut h, "Remove");
+    click(&mut h, "Delete");
+    assert!(h.state().session.export_preset("Yours").is_none());
+    assert!(!h.state().ui.export.sets.contains_key(&0), "the set exports with the global settings again");
+
+    // Cancel goes back to the settings the window opened with, minus the removed template
+    click(&mut h, "Cancel");
+    assert!(h.state().ui.export.sets.values().all(|o| o.preset.as_deref() != Some("Yours") && o.preset.as_deref() != Some("Mine")));
+}
