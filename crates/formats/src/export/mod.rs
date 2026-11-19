@@ -881,7 +881,24 @@ pub fn render_maps(input: &ExportInput, opts: &ExportOptions) -> Result<Vec<Expo
                     .flat_map(|y| (x0..x0 + w).map(move |x| (x, y)))
                     .map(|(x, y)| sampler.covered(x, y) || dmap.as_ref().is_some_and(|d| d.source(x, y).is_some()))
                     .collect();
-                diffuse_fill(&mut data, (w as usize, h as usize), n, &known);
+
+                // Like the dilation, the fill stays inside each UV tile of an atlas
+                let block = if p.tile.is_none() && grid.is_some() { tile_res as usize } else { w.max(h) as usize };
+                let (w, h) = (w as usize, h as usize);
+                for by in (0..h).step_by(block.max(1)) {
+                    for bx in (0..w).step_by(block.max(1)) {
+                        let (bw, bh) = (block.min(w - bx), block.min(h - by));
+                        let rows = || (by..by + bh).map(|y| (y * w + bx)..(y * w + bx + bw));
+                        let mut part: Vec<f32> = rows().flat_map(|r| data.get(r.start * n..r.end * n).unwrap_or_default().iter().copied()).collect();
+                        let part_known: Vec<bool> = rows().flat_map(|r| known.get(r).unwrap_or_default().iter().copied()).collect();
+                        diffuse_fill(&mut part, (bw, bh), n, &part_known);
+                        for (r, chunk) in rows().zip(part.chunks(bw * n)) {
+                            if let Some(dst) = data.get_mut(r.start * n..r.end * n) {
+                                dst.copy_from_slice(chunk);
+                            }
+                        }
+                    }
+                }
             }
 
             // `size` is per tile: an atlas scales with it

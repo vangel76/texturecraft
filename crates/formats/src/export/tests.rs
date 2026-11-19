@@ -532,8 +532,15 @@ fn uv_tiles_export_one_file_per_tile_without_padding_across() {
     let opts = ExportOptions { size: Some(32), ..ExportOptions::new(named) };
     let small = render_maps(&input, &opts).unwrap();
     assert_eq!((small[1].name.as_str(), small[1].width, small[1].height), ("1002_Body_Set.png", 32, 32));
-    let atlas = render_maps(&input, &ExportOptions { atlas: true, ..ExportOptions::new(preset) }).unwrap();
+    let atlas = render_maps(&input, &ExportOptions { atlas: true, ..ExportOptions::new(preset.clone()) }).unwrap();
     assert_eq!((atlas.len(), atlas[0].name.as_str(), atlas[0].width, atlas[0].height), (1, "Body_Set_color.png", 2 * RES, RES));
+
+    // Diffusion stays inside each tile of the atlas too: tile 1001's gap takes only its red
+    let diffused = render_maps(&input, &ExportOptions { atlas: true, padding: Padding::DilationDiffusion(2), ..ExportOptions::new(preset) }).unwrap();
+    let img = decode(&diffused[0]).to_rgb8();
+    for x in [20, 40, RES - 1] {
+        assert_eq!(img.get_pixel(x, 10).0, [255, 0, 0], "({x},10)");
+    }
 }
 
 #[test]
