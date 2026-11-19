@@ -11,7 +11,7 @@ struct Globals {
     view_proj: mat4x4<f32>,
     inv_view_proj: mat4x4<f32>, // background rays: a perspective camera even when the view is orthographic
     eye: vec4<f32>,      // xyz eye position, w -
-    env: vec4<f32>,      // x rotation (radians), y max lod, z AO intensity, w -
+    env: vec4<f32>,      // x rotation (radians), y max lod, z AO intensity, w lit single-channel view (1: the channel on a lit neutral material)
     sh: array<vec4<f32>, 9>,
     mode: vec4<f32>,     // x view mode (0 material, 1 channel, 2 mesh map, 3 UV checker), y channel index, z height strength, w normal Y sign
     bg: vec4<f32>,       // x environment opacity, y background blur lod, z UV view (1) or 3D (0), w wireframe opacity
@@ -417,15 +417,33 @@ fn shade_mesh(i: VOut, front: bool) -> Shaded {
         uv = parallax_uv(uv, vec3<f32>(dot(v, t), dot(v, b), dot(v, n_geo)));
     }
 
-    let base_s = textureSample(t_base, samp, uv);
-    let orm = textureSample(t_orm, samp, uv);
+    // A lit single-channel view puts the channel on a plain lit material: the other channels' lobes are left out
+    let solo_lit = g.env.w > 0.5 && i32(g.mode.x + 0.5) == 1;
+    var base_s = textureSample(t_base, samp, uv);
+    var orm = textureSample(t_orm, samp, uv);
     let nrm_t = textureSample(t_nrm, samp, uv);
     let nrm_s = nrm_t.xyz;
-    let emis_t = textureSample(t_emis, samp, uv);
+    var emis_t = textureSample(t_emis, samp, uv);
+    var lobes = textureSample(t_lobes, samp, uv);
+    var sheen_t = textureSample(t_sheen, samp, uv);
+    var extra = textureSample(t_extra, samp, uv);
+    if (solo_lit) {
+        // Base color shows itself; metallic and roughness show as a grey base color; normal and height show on neutral grey
+        var shown = vec3<f32>(0.5);
+        switch i32(g.mode.y + 0.5) {
+            case 0: { shown = base_s.rgb; }
+            case 1: { shown = vec3<f32>(orm.b); }
+            case 2: { shown = vec3<f32>(orm.g); }
+            default: {}
+        }
+        base_s = vec4<f32>(shown, base_s.a);
+        orm = vec4<f32>(1.0, 0.5, 0.0, 0.5);
+        emis_t = vec4<f32>(0.0);
+        lobes = vec4<f32>(0.0);
+        sheen_t = vec4<f32>(0.0);
+        extra = vec4<f32>(0.0);
+    }
     let emis = emis_t.rgb;
-    let lobes = textureSample(t_lobes, samp, uv);
-    let sheen_t = textureSample(t_sheen, samp, uv);
-    let extra = textureSample(t_extra, samp, uv);
     let aux = textureSample(t_aux, samp, uv);
     let dims = vec2<f32>(textureDimensions(t_height));
     let ts = 1.0 / dims;
@@ -448,7 +466,7 @@ fn shade_mesh(i: VOut, front: bool) -> Shaded {
     let n = normalize(t * n_ts.x + b * n_ts.y + n_geo * n_ts.z);
 
     let mode = i32(g.mode.x + 0.5);
-    if (mode == 1) {
+    if (mode == 1 && !solo_lit) {
         let ch = i32(g.mode.y + 0.5);
         if (ch >= 11) {
             return unlit(lobe_view(ch, lobes, sheen_t, nrm_t.a, emis_t.a, extra));

@@ -79,6 +79,17 @@ that closes it back onto the bar; the float is saved with the UI state.
   *Shadows opacity* 90 greyed) and Camera settings (*Preset* and *Restore* work on the saved
   cameras). Post effects and Viewer settings keep TextureCraft's own controls. The reference's
   fifth tab is not shown in the screenshot and is left out. Colour management stays greyed.
+- **View mode combo** (viewport headers and Display Settings, one list): italic non-selectable
+  titles *Lighting* (*Material*), *Single channel* (the channels, *Normal+height+mesh*) and
+  *Mesh maps* (*Normal*, *World space normal*, *ID*, *Ambient occlusion*, *Curvature*,
+  *Position*, *Thickness*, *Height*, *Bent normals*, *Opacity*), then *Other...*, an image picker
+  (*Search...* pre-filled *u:image PRs*, *reset query to default*) that shows a project image. The
+  channels read *Base metalness* and *Specular roughness* in this combo only. C and Shift+C visit
+  *Normal+height+mesh* too. *Display solo view without lighting (unlit)* sits in Display Settings
+  (Viewer settings) and is on by default; off shades Base color, Metallic, Roughness, Normal and
+  Height on a lit neutral material in the 3D view (the other channels stay flat). TextureCraft's
+  *UV checker* stays, under *Lighting*. The default query lists every image; other words narrow
+  the list by name.
 - **Shader Settings:** greyed *Undo*, *Redo* and *Instance name* (*Main shader*); the *open-pbr*
   button opens the shader choice with the reference's search (*u:shader*) and its 17 entries as
   the screenshot shows them, names cut short included. Only *open-pbr* works. Shader parameters

@@ -40,7 +40,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Set view mode",
             [],
             None,
-            "{mode: material|uvChecker|normalHeightMesh (the normal the shading uses: mesh normal, Height channel slope and Normal channel; 2D view: the tangent-space normal)|mask|<channel id>|map:<mesh map id>, layer? (for mask)}",
+            "{mode: material|uvChecker|normalHeightMesh (the normal the shading uses: mesh normal, Height channel slope and Normal channel; 2D view: the tangent-space normal)|image (an image resource shown as it is on the mesh and in the 2D view)|mask|<channel id>|map:<mesh map id>, image? (the resource, for image), layer? (for mask)}",
             always,
             view
         ),
@@ -68,7 +68,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Display settings",
             [],
             None,
-            "{environment?: <built-in>|resource:<image resource>, exposure?, blur?, rotation?, opacity?, toneMapping?: linear|aces, fov?, shadows?, aoIntensity?, bloom?, vignette?, sharpen?, grain?, postEffects?, taa?, specGloss?, parallax?, displacement? (the viewport moves the surface by the height channel), scatterColor?: [r,g,b] linear or \"#rrggbb\" sRGB, scatterRadius? (0..1 of the mesh radius), ior? (1..3, transmission), dof?: {enabled?, focusDistance? (view depth, world units; 0 = the orbit target), aperture? (lens radius, 0..1 of the mesh radius)}}",
+            "{environment?: <built-in>|resource:<image resource>, exposure?, blur?, rotation?, opacity?, toneMapping?: linear|aces, fov?, shadows?, soloUnlit? (single-channel views flat; off: lit), aoIntensity?, bloom?, vignette?, sharpen?, grain?, postEffects?, taa?, specGloss?, parallax?, displacement? (the viewport moves the surface by the height channel), scatterColor?: [r,g,b] linear or \"#rrggbb\" sRGB, scatterRadius? (0..1 of the mesh radius), ior? (1..3, transmission), dof?: {enabled?, focusDistance? (view depth, world units; 0 = the orbit target), aperture? (lens radius, 0..1 of the mesh radius)}}",
             always,
             display
         ),
@@ -157,23 +157,20 @@ fn set_view(s: &mut Session, v: ViewMode) -> Result<Value> {
     Ok(json!({ "view": v.label() }))
 }
 
+/// C and Shift+C: the set's channels, then "Normal+height+mesh", then round again
 fn cycle_channel(s: &mut Session, d: i64) -> Result<Value> {
-    let chans = s.doc.project.texture_set(s.ts()).map(|t| t.channel_list()).unwrap_or_default();
-    if chans.is_empty() {
+    let mut views: Vec<ViewMode> = s.doc.project.texture_set(s.ts()).map(|t| t.channel_list()).unwrap_or_default().into_iter().map(ViewMode::Channel).collect();
+    if views.is_empty() {
         return set_view(s, ViewMode::Material);
     }
-    let n = chans.len() as i64;
-    let i = match s.view {
-        ViewMode::Channel(c) => chans.iter().position(|x| *x == c).map(|i| (i as i64 + d).rem_euclid(n)).unwrap_or(0),
-        _ => {
-            if d > 0 {
-                0
-            } else {
-                n - 1
-            }
-        }
+    views.push(ViewMode::NormalHeightMesh);
+    let n = views.len() as i64;
+    let i = match views.iter().position(|view| *view == s.view) {
+        Some(i) => (i as i64 + d).rem_euclid(n),
+        None if d > 0 => 0,
+        None => n - 1,
     };
-    set_view(s, ViewMode::Channel(chans[i as usize]))
+    set_view(s, views[i as usize])
 }
 
 fn cycle_map(s: &mut Session, d: i64) -> Result<Value> {
@@ -198,6 +195,14 @@ fn view(s: &mut Session, p: &Value) -> Result<Value> {
         "material" => ViewMode::Material,
         "uvChecker" | "uv" | "checker" => ViewMode::UvChecker,
         "normalHeightMesh" => ViewMode::NormalHeightMesh,
+        "image" => {
+            let name = strp(p, "image").ok_or_else(|| bad("viewport.view", "`image` (an image resource) is required"))?;
+            if !s.images.contains_key(name) {
+                return Err(bad("viewport.view", format!("no image resource `{name}` (import it with resource.import)")));
+            }
+            s.view_image = Some(name.to_owned());
+            ViewMode::Image
+        }
         "mask" => {
             let id = crate::commands::layer_param(s, "viewport.view", p)?;
             if s.doc.project.layer(id)?.mask.is_none() {
@@ -326,6 +331,7 @@ fn display(s: &mut Session, p: &Value) -> Result<Value> {
         ("specGloss", &mut d.spec_gloss),
         ("parallax", &mut d.parallax),
         ("displacement", &mut d.displacement),
+        ("soloUnlit", &mut d.solo_unlit),
     ] {
         if let Some(b) = boolp(p, k) {
             *slot = b;
@@ -343,6 +349,73 @@ fn display(s: &mut Session, p: &Value) -> Result<Value> {
 mod tests {
     use super::*;
     use crate::execute;
+
+    fn sphere_session() -> Session {
+        Session::new_project("t", texturecraft_geom::primitives::sphere(1.0, 16, 8), "builtin:sphere", None, 128).unwrap()
+    }
+
+    fn pressed(s: &mut Session, command: &str) -> ViewMode {
+        execute(s, command, &json!({})).unwrap();
+        s.view
+    }
+
+    #[test]
+    fn c_visits_the_channels_then_normal_height_mesh_and_wraps() {
+        let mut s = sphere_session();
+        let channels: Vec<ViewMode> = s.doc.project.texture_set(s.ts()).unwrap().channel_list().into_iter().map(ViewMode::Channel).collect();
+        assert!(channels.len() > 2);
+        assert_eq!(s.view, ViewMode::Material);
+
+        // From the material C starts at the first channel
+        let mut seen = Vec::new();
+        for _ in 0..channels.len() + 2 {
+            seen.push(pressed(&mut s, "viewport.nextChannel"));
+        }
+        let mut expected = channels.clone();
+        expected.push(ViewMode::NormalHeightMesh);
+        expected.push(channels[0]);
+        assert_eq!(seen, expected, "channels, then Normal+height+mesh, then round again");
+
+        // Shift+C walks it backwards, and from the material starts at the last entry
+        assert_eq!(pressed(&mut s, "viewport.previousChannel"), ViewMode::NormalHeightMesh);
+        assert_eq!(pressed(&mut s, "viewport.previousChannel"), *channels.last().unwrap());
+        execute(&mut s, "viewport.displayMaterial", &json!({})).unwrap();
+        assert_eq!(pressed(&mut s, "viewport.previousChannel"), ViewMode::NormalHeightMesh);
+    }
+
+    #[test]
+    fn an_image_resource_can_be_shown_as_the_view() {
+        let mut s = sphere_session();
+        assert!(execute(&mut s, "viewport.view", &json!({"mode": "image"})).is_err(), "the image is required");
+        assert!(execute(&mut s, "viewport.view", &json!({"mode": "image", "image": "stone.png"})).is_err(), "unknown resources are rejected");
+        assert_eq!(s.view, ViewMode::Material);
+        assert!(s.image_view_rgba(8).is_none(), "no image is chosen");
+
+        let mut png = Vec::new();
+        let img = image::RgbaImage::from_fn(2, 2, |x, y| image::Rgba([if x == 0 { 255 } else { 0 }, if y == 0 { 255 } else { 0 }, 0, 255]));
+        image::DynamicImage::ImageRgba8(img).write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+        let name = s.import_resource_bytes("stone.png", png).unwrap();
+        execute(&mut s, "viewport.view", &json!({"mode": "image", "image": name})).unwrap();
+        assert_eq!((s.view, s.view_image.as_deref()), (ViewMode::Image, Some(name.as_str())));
+
+        // The 2x2 image is stretched over the UV square: each quadrant keeps its texel's color
+        let rgba = s.image_view_rgba(8).unwrap();
+        assert_eq!(rgba.len(), 8 * 8 * 4);
+        let at = |x: usize, y: usize| rgba[(y * 8 + x) * 4..(y * 8 + x) * 4 + 3].to_vec();
+        assert_eq!(at(0, 0), [255, 255, 0], "top left: red and green");
+        assert_eq!(at(7, 0), [0, 255, 0], "top right: green");
+        assert_eq!(at(0, 7), [255, 0, 0], "bottom left: red");
+        assert_eq!(at(7, 7), [0, 0, 0], "bottom right: black");
+    }
+
+    #[test]
+    fn the_solo_view_is_unlit_by_default_and_the_switch_is_a_display_setting() {
+        let mut s = sphere_session();
+        assert!(s.doc.project.display.solo_unlit);
+        let r = execute(&mut s, "display.set", &json!({"soloUnlit": false})).unwrap();
+        assert_eq!(r["solo_unlit"], json!(false));
+        assert!(!s.doc.project.display.solo_unlit);
+    }
 
     #[test]
     fn hdr_resources_become_the_environment() {

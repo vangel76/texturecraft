@@ -73,6 +73,7 @@ pub mod profile;
 mod project_config;
 pub mod project_form;
 pub mod properties_popup;
+mod query_field;
 mod rail_popup;
 pub mod render_mode;
 mod resource_panel;
@@ -112,6 +113,7 @@ pub mod unavailable;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod updates_ui;
 pub mod uv_paint_point;
+mod view_mode_picker;
 pub mod viewport;
 pub mod web_files;
 pub mod widgets;

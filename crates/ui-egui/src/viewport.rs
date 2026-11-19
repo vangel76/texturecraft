@@ -101,6 +101,7 @@ pub fn central(app: &mut TextureCraftApp, ui: &mut Ui) {
         _ if quick_mask_shown(app) => Some(crate::gpu::AuxView::QuickMask),
         ViewMode::MeshMap(map) => Some(crate::gpu::AuxView::MeshMap(map)),
         ViewMode::Mask(id) => Some(crate::gpu::AuxView::Mask(id)),
+        ViewMode::Image => Some(crate::gpu::AuxView::Image),
         _ if mode == crate::state::Mode::Baking && app.ui.bake_visualization.bent_normal_shown() => Some(crate::gpu::AuxView::MeshMap(BakedMap::BentNormal)),
         _ => None,
     };
@@ -329,7 +330,7 @@ fn shade(app: &TextureCraftApp) -> Shade {
         _ if quick_mask_shown(app) => (VIEW_MODE_AUX_TEXTURE, 0),
         ViewMode::Material => (VIEW_MODE_MATERIAL, 0),
         ViewMode::Channel(selected_channel) => (VIEW_MODE_CHANNEL, selected_channel.index() as u32),
-        ViewMode::MeshMap(_) | ViewMode::Mask(_) => (VIEW_MODE_AUX_TEXTURE, 0),
+        ViewMode::MeshMap(_) | ViewMode::Mask(_) | ViewMode::Image => (VIEW_MODE_AUX_TEXTURE, 0),
         ViewMode::UvChecker => (VIEW_MODE_UV_CHECKER, 0),
         ViewMode::NormalHeightMesh => (VIEW_MODE_NORMAL_HEIGHT_MESH, 0),
     };
@@ -527,70 +528,9 @@ fn view_header(app: &mut TextureCraftApp, ui: &mut Ui, rect: Rect, id: &str) {
     view_mode_picker(app, &mut child, &format!("{id}_mode"), VIEW_PICKER_WIDTH);
 }
 
-/// The view-mode picker of a view's header and of Display Settings: the material, the channels, the mesh maps and the UV checker
+/// The view-mode picker of a view's header and of Display Settings
 pub(crate) fn view_mode_picker(app: &mut TextureCraftApp, child: &mut Ui, id_salt: &str, width: f32) {
-    let project_open = app.session.project_open;
-
-    // Bake mode lights the project mesh with the neutral material unless the painted one is asked for
-    let baking = app.ui.mode == crate::state::Mode::Baking;
-    let neutral = baking && app.session.view == ViewMode::Material && app.ui.bake_visualization.neutral_shown;
-    let label = match app.session.view {
-        _ if neutral => "Neutral Material".to_owned(),
-        ViewMode::MeshMap(map) => crate::i18n::baked_map_label(map).to_owned(),
-        _ => app.session.view.label(),
-    };
-    let channels = app.session.doc.project.texture_set(app.session.ts()).map(|texture_set| texture_set.channel_list()).unwrap_or_default();
-
-    // The picker stays greyed without project maps
-    child.add_enabled_ui(project_open, |child| {
-        egui::ComboBox::from_id_salt(id_salt).width(width).selected_text(tr(&label)).show_ui(child, |ui| {
-            if baking && ui.selectable_label(neutral, tr("Neutral Material")).clicked() {
-                app.ui.bake_visualization.neutral_shown = true;
-                app.run("viewport.view", json!({"mode": "material"}));
-            }
-            if ui.selectable_label(app.session.view == ViewMode::Material && !neutral, tr("Material")).clicked() && project_open {
-                // Only bake mode's pick turns the neutral material off; painting mode's Material leaves bake mode's choice alone
-                app.ui.bake_visualization.neutral_shown &= !baking;
-                app.run("viewport.view", json!({"mode": "material"}));
-            }
-
-            // Nothing else to show without a project
-            if !project_open {
-                return;
-            }
-
-            ui.separator();
-            if baking {
-                mesh_map_entries(app, ui);
-                return;
-            }
-
-            for channel in channels {
-                if ui.selectable_label(app.session.view == ViewMode::Channel(channel), tr(channel.label())).clicked() {
-                    app.run("viewport.view", json!({"mode": channel.id()}));
-                }
-            }
-            if ui.selectable_label(app.session.view == ViewMode::NormalHeightMesh, tr(texturecraft_engine::NORMAL_HEIGHT_MESH_LABEL)).clicked() {
-                app.run("viewport.view", json!({"mode": "normalHeightMesh"}));
-            }
-            ui.separator();
-            mesh_map_entries(app, ui);
-            ui.separator();
-            if ui.selectable_label(app.session.view == ViewMode::UvChecker, tr("UV checker")).clicked() {
-                app.run("viewport.view", json!({"mode": "uvChecker"}));
-            }
-        })
-    });
-}
-
-/// The view picker's entries that show one baked mesh map
-fn mesh_map_entries(app: &mut TextureCraftApp, ui: &mut Ui) {
-    for map in BakedMap::ALL {
-        let map_label = trf("Mesh map: {map}", &[("map", &tr(crate::i18n::baked_map_label(map)))]);
-        if ui.selectable_label(app.session.view == ViewMode::MeshMap(map), map_label).clicked() {
-            app.run("viewport.view", json!({"mode": format!("map:{}", map.id())}));
-        }
-    }
+    crate::view_mode_picker::show(app, child, id_salt, width);
 }
 
 /// Height above a view's bottom edge of the "Mask" label, clear of the axis gizmo

@@ -50,6 +50,10 @@ pub const HDR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
 /// Prefiltered environment levels (roughness 0..1).
 pub const ENV_LEVELS: u32 = 6;
 const SHADOW_SIZE: u32 = 2048;
+
+/// The last channel index (base color, metallic, roughness, normal, height) a lit single-channel view can show; the others stay flat
+const SOLO_LIT_LAST_CHANNEL: u32 = 4;
+
 /// Bloom pyramid levels (1/2 .. 1/32 resolution).
 const BLOOM_LEVELS: u32 = 5;
 /// Bright-pass threshold on the exposed scene value, and the glow gain at strength 1.
@@ -142,6 +146,10 @@ pub struct Shade {
     pub view_mode: u32,
     /// Channel index for view mode 1 (channel order, see the shader).
     pub channel: u32,
+    /// Single-channel views of Base color, Metallic, Roughness, Normal and Height show the channel
+    /// on a lit neutral material instead of flat (Display settings > "Display solo view without
+    /// lighting (unlit)" off); 3D view only.
+    pub solo_lit: bool,
     /// Direction to an optional key light and its intensity (0 = off). The direction is in
     /// environment space: it turns with `env_rotation_deg` like the lights painted into the
     /// environment, so rotating the environment sweeps the key light and its shadows too.
@@ -226,6 +234,7 @@ impl Shade {
             ior: d.ior,
             dof: d.dof.enabled.then_some([d.dof.focus_distance, d.dof.aperture]),
             displacement: d.displacement,
+            solo_lit: !d.solo_unlit,
             ..Shade::default()
         }
     }
@@ -257,6 +266,7 @@ impl Default for Shade {
             normal_y: 1.0,
             view_mode: 0,
             channel: 0,
+            solo_lit: false,
             light: [0.0; 4],
             wireframe: false,
             shadows: false,
@@ -1997,8 +2007,9 @@ impl Renderer {
             }
         };
 
-        // Data views bypass exposure, tone mapping, effects and shadows
-        let data = uv_view > 0.5 || s.view_mode != 0;
+        // A lit single-channel view is shaded like the material; the other data views bypass exposure, tone mapping, effects and shadows
+        let solo_lit = s.solo_lit && s.view_mode == 1 && s.channel <= SOLO_LIT_LAST_CHANNEL && uv_view < 0.5;
+        let data = uv_view > 0.5 || (s.view_mode != 0 && !solo_lit);
         let fx = |v: f32| if s.post_effects && !data { v.clamp(0.0, 1.0) } else { 0.0 };
         let bloom = fx(s.bloom) > 0.0;
 
@@ -2046,7 +2057,7 @@ impl Renderer {
             view_proj: vp.to_cols_array_2d(),
             inv_view_proj: bg_vp.inverse().to_cols_array_2d(),
             eye: [e.x, e.y, e.z, 0.0],
-            env: [s.env_rotation_deg.to_radians(), (ENV_LEVELS - 1) as f32, s.ao_intensity, 0.0],
+            env: [s.env_rotation_deg.to_radians(), (ENV_LEVELS - 1) as f32, s.ao_intensity, if solo_lit { 1.0 } else { 0.0 }],
             sh: self.sh,
             mode: [s.view_mode as f32, s.channel as f32, s.height_strength, s.normal_y],
             bg: [s.env_opacity, s.env_blur * (ENV_LEVELS - 1) as f32, uv_view, 0.0],

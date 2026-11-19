@@ -236,5 +236,7 @@ fn post_effects(ui: &mut Ui, display: &mut DisplaySettings) {
 fn viewer(app: &mut TextureCraftApp, ui: &mut Ui, display: &mut DisplaySettings) {
     ui.checkbox(&mut app.ui.wireframe_3d, tr("Show wireframe in the 3D view"));
     ui.checkbox(&mut app.ui.uv_wireframe, tr("Show UV wireframe in the 2D view"));
+    ui.checkbox(&mut display.solo_unlit, tr("Display solo view without lighting (unlit)"))
+        .on_hover_text(tr("Off: a single-channel view in the 3D view shows the channel on a lit neutral material"));
     ui.checkbox(&mut display.taa, tr("Temporal anti-aliasing (refines the 3D view while it is still)"));
 }

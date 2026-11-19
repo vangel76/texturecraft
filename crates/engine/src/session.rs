@@ -153,6 +153,9 @@ pub enum ViewMode {
     /// The surface normal the shading uses, unlit: the mesh normal turned by the Height
     /// channel's slope and the Normal channel ("Normal+height+mesh").
     NormalHeightMesh,
+    /// One of the project's image resources shown on the mesh (and in the 2D view) as it is: the
+    /// picker's "Other..." (the image is [`Session::view_image`]).
+    Image,
 }
 
 /// The view picker's entry for [`ViewMode::NormalHeightMesh`]
@@ -167,6 +170,7 @@ impl ViewMode {
             ViewMode::UvChecker => "UV checker".into(),
             ViewMode::Mask(_) => "Layer mask".into(),
             ViewMode::NormalHeightMesh => NORMAL_HEIGHT_MESH_LABEL.into(),
+            ViewMode::Image => "Other...".into(),
         }
     }
 }
@@ -433,6 +437,8 @@ pub struct Session {
     pub target: StackTarget,
     pub camera: OrbitCamera,
     pub view: ViewMode,
+    /// The image resource [`ViewMode::Image`] shows
+    pub view_image: Option<String>,
     /// The layer shown alone in the viewport (not saved, not in the history; see [`crate::solo`]).
     pub solo: Option<crate::Solo>,
     /// The live bake preview while the app bakes (see [`crate::bake_preview`]).
@@ -511,6 +517,7 @@ impl Session {
             target: StackTarget::Content,
             camera,
             view: ViewMode::Material,
+            view_image: None,
             solo: None,
             bake_preview: None,
             viewport: Vec2::new(1280.0, 800.0),
@@ -1137,6 +1144,31 @@ impl Session {
         let (ts, _, _) = self.doc.project.locate(id)?;
         let gray = self.with_inputs(ts, |inp| texturecraft_compose::mask_image(inp, id, size))?;
         Some(gray.iter().flat_map(|g| [*g, *g, *g, 255]).collect())
+    }
+
+    /// The image resource of the "Other..." view as `size` x `size` RGBA8 pixels over the UV square (stretched, bilinear,
+    /// values as stored; HDR values clamp to 1); None when the view shows no image of the project
+    pub fn image_view_rgba(&self, size: u32) -> Option<Vec<u8>> {
+        let image = self.images.get(self.view_image.as_deref()?)?;
+        let (width, height) = (image.width.max(1) as usize, image.height.max(1) as usize);
+        let size = size.max(1) as usize;
+        let texel = |x: usize, y: usize| image.rgba.get(y.min(height - 1) * width + x.min(width - 1)).copied().unwrap_or([0.0, 0.0, 0.0, 1.0]);
+        let mut out = Vec::with_capacity(size * size * 4);
+        for y in 0..size {
+            let v = ((y as f32 + 0.5) / size as f32 * height as f32 - 0.5).max(0.0);
+            let (y0, fy) = (v.floor() as usize, v.fract());
+            for x in 0..size {
+                let u = ((x as f32 + 0.5) / size as f32 * width as f32 - 0.5).max(0.0);
+                let (x0, fx) = (u.floor() as usize, u.fract());
+                let (a, b, c, d) = (texel(x0, y0), texel(x0 + 1, y0), texel(x0, y0 + 1), texel(x0 + 1, y0 + 1));
+                for k in 0..3 {
+                    let value = (a[k] * (1.0 - fx) + b[k] * fx) * (1.0 - fy) + (c[k] * (1.0 - fx) + d[k] * fx) * fy;
+                    out.push((value.clamp(0.0, 1.0) * 255.0 + 0.5) as u8);
+                }
+                out.push(255);
+            }
+        }
+        Some(out)
     }
 
     /// Mask values at texture-set coordinates in request order; None without an enabled mask

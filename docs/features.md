@@ -185,7 +185,10 @@ Everything TextureCraft does today, by area. What's still missing is in [`ROADMA
 - View any channel, any baked mesh map, or a UV checker; Alt+drag to orbit (Alt+Shift+drag in 90°
   steps), middle-drag to pan, wheel to zoom, F to show the entire mesh, Shift+F to frame the active
   texture set (a floor plane or other helper geometry stays out of the view and the orbit pivot),
-  M / C / B to cycle views. Choose **free (trackball) or constrained rotation** in the top bar (free
+  M / C / B to cycle views (C and Shift+C also visit Normal+height+mesh). The view picker groups
+  the modes under *Lighting*, *Single channel* and *Mesh maps*; *Other...* opens a search of the
+  project's images and shows the chosen one on the mesh and in the 2D view; Display Settings has
+  *Display solo view without lighting (unlit)* (on by default; off shades a channel view). Choose **free (trackball) or constrained rotation** in the top bar (free
   turns the model over; commands for stepped turns and for the next / previous saved camera can be
   bound in Settings), and the **Normal+height+mesh** view in the view picker. Orbit, pan and zoom buttons in the corner of each view do the same with a
   plain drag, so a pen and tablet can navigate without a keyboard or wheel (Viewport menu ▸

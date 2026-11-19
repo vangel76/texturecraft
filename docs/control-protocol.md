@@ -526,6 +526,12 @@ cameras, fixed views and `camera.set` yaw/pitch put a free camera level. `camera
 camera, the first or the last). The commands have no default keys and are bindable in Settings ▸ Keyboard.
 None is an undo step.
 
+`viewport.view {mode: "image", image: <image resource>}` shows a project image as it is, stretched over
+the UV square, on the mesh and in the 2D view (the view picker's "Other..."). `display.set {soloUnlit}`
+(default true) says whether a single-channel view is flat; off, Base color, Metallic, Roughness, Normal
+and Height are shaded on a lit neutral material in the 3D view. `viewport.nextChannel` and
+`viewport.previousChannel` (C, Shift+C) visit the set's channels, then "Normal+height+mesh", and wrap.
+
 `viewport.view {mode: "normalHeightMesh"}` is the combined "Normal+height+mesh" view: the surface normal
 the shading uses (mesh normal, Height channel slope and Normal channel), unlit; the 2D view shows its
 tangent-space form.

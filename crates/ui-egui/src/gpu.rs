@@ -22,6 +22,8 @@ pub enum AuxView {
     Mask(texturecraft_engine::core::LayerId),
     /// The quick mask being edited, over the base color.
     QuickMask,
+    /// The project image of the view picker's "Other..." (`Session::view_image`)
+    Image,
 }
 
 /// A texture set's texels across and down, and its mesh material.
@@ -317,6 +319,20 @@ impl GpuLink {
                         out.aux.push((texture_set, resolution, MASK_VIEW_BLANK.repeat((resolution * resolution) as usize)));
                         self.aux.insert(texture_set, key);
                     }
+                }
+            }
+            Some(AuxView::Image) => {
+                for texture_set in 0..session.caches.len() {
+                    let Some(cache) = session.caches.get(texture_set) else { continue };
+                    let shown = session.view_image.as_deref().and_then(|name| session.images.get(name));
+                    let key = (format!("image{}", session.view_image.as_deref().unwrap_or_default()), shown.map_or(0, |image| Arc::as_ptr(image) as u64));
+                    if self.aux.get(&texture_set) == Some(&key) {
+                        continue;
+                    }
+                    let resolution = texturecraft_render::aux_size(cache.size);
+                    let rgba = session.image_view_rgba(resolution).unwrap_or_else(|| MASK_VIEW_BLANK.repeat((resolution * resolution) as usize));
+                    out.aux.push((texture_set, resolution, rgba));
+                    self.aux.insert(texture_set, key);
                 }
             }
             Some(AuxView::QuickMask) => {

@@ -276,6 +276,8 @@ pub struct DisplaySettings {
     /// Degrees.
     pub env_rotation: f32,
     pub shadows: bool,
+    /// A single-channel view shows the channel flat, without lighting (off: the channel on a lit neutral material).
+    pub solo_unlit: bool,
     pub tone_mapping: ToneMapping,
     pub fov: f32,
     pub post_effects: bool,
@@ -369,6 +371,7 @@ impl Default for DisplaySettings {
             env_blur: 0.35,
             env_rotation: 0.0,
             shadows: false,
+            solo_unlit: true,
             tone_mapping: ToneMapping::AcesFilmic,
             fov: 40.0,
             post_effects: false,

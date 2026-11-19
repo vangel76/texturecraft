@@ -112,6 +112,38 @@ fn exposure_brightens_the_material_but_not_data_views() {
     assert!(r.abs_diff(188) <= 1, "base color channel shows the raw value, got {r}");
 }
 
+/// A lit single-channel view shades the channel on a neutral material: the ball shows light and shadow
+/// sides and follows exposure, where the flat view shows one value everywhere.
+#[test]
+fn a_lit_channel_view_is_shaded_and_the_flat_one_is_not() {
+    let Some((mut h, frame)) = setup() else { return };
+    let flat = shaded(&frame, |s| {
+        s.view_mode = 1;
+        s.channel = 0;
+    });
+    let lit = shaded(&flat, |s| s.solo_lit = true);
+    let flat_img = render(&mut h, &flat, "solo_flat");
+    let lit_img = render(&mut h, &lit, "solo_lit");
+    assert_ne!(flat_img.px, lit_img.px, "the lit view differs from the flat one");
+    assert_eq!(flat_img.at(240, 140), flat_img.at(260, 150), "the flat view shows one value");
+    let shades: std::collections::BTreeSet<u8> = (100..260).step_by(8).map(|x| lit_img.at(x, 180)[0]).collect();
+    assert!(shades.len() > 4, "the lit ball shows light and shadow sides ({shades:?})");
+    let bright = render(&mut h, &shaded(&lit, |s| s.exposure_ev = 1.0), "solo_lit_ev1");
+    assert!(bright.mean(200, 100, 280, 180) > lit_img.mean(200, 100, 280, 180) + 5.0, "a lit channel view follows exposure");
+
+    // Channels past Height have no lit form: they stay flat
+    let emissive = shaded(&flat, |s| s.channel = 5);
+    let a = render(&mut h, &emissive, "solo_emissive_flat");
+    let b = render(&mut h, &shaded(&emissive, |s| s.solo_lit = true), "solo_emissive_lit_switch");
+    assert_eq!(a.px, b.px, "the emissive channel stays flat");
+
+    // The 2D view shows the texture itself either way
+    let uv = Frame { view_id: 2, kind: ViewKind::Uv { ts: 0, zoom: 1.0, pan: [0.0, 0.0] }, ..flat.clone() };
+    let flat_uv = render(&mut h, &uv, "solo_uv_flat");
+    let lit_uv = render(&mut h, &shaded(&uv, |s| s.solo_lit = true), "solo_uv_lit");
+    assert_eq!(flat_uv.px, lit_uv.px, "the 2D view is not shaded");
+}
+
 #[test]
 fn the_combined_normal_view_shows_the_shading_normal_unlit() {
     let Some((mut h, frame)) = setup() else { return };
