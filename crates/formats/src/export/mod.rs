@@ -336,6 +336,23 @@ pub enum Padding {
     Infinite,
 }
 
+/// One preset map's own export settings.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MapOverride {
+    /// False leaves the map out (its file name is still reserved, so the others keep theirs).
+    pub enabled: bool,
+    /// Instead of the preset's and the export's file type.
+    pub format: Option<FileFormat>,
+    /// Instead of the preset's and the export's bit depth.
+    pub bit_depth: Option<u8>,
+}
+
+impl Default for MapOverride {
+    fn default() -> Self {
+        MapOverride { enabled: true, format: None, bit_depth: None }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ExportOptions {
     pub preset: ExportPreset,
@@ -354,6 +371,9 @@ pub struct ExportOptions {
     /// into 8/16-bit files and linear Rec.709 into float files (EXR, HDR).
     #[serde(skip)]
     pub color_space: Option<ColorSpace>,
+    /// Per map (by index into the preset's maps) settings.
+    #[serde(default)]
+    pub maps: std::collections::BTreeMap<usize, MapOverride>,
 }
 
 impl ExportOptions {
@@ -374,6 +394,7 @@ impl ExportOptions {
             normal_format: None,
             atlas: false,
             color_space: None,
+            maps: Default::default(),
         }
     }
 }
@@ -512,8 +533,10 @@ pub fn list_outputs(project: &Project, ts: usize, mesh_name: &str, opts: &Export
             continue;
         }
 
-        let format = opts.format_override.unwrap_or(map.format);
-        let bit_depth = format.depth(opts.bit_depth_override.unwrap_or(map.bit_depth));
+        let own = opts.maps.get(&i);
+        let format = own.and_then(|o| o.format).or(opts.format_override).unwrap_or(map.format);
+        let bit_depth = format.depth(own.and_then(|o| o.bit_depth).or(opts.bit_depth_override).unwrap_or(map.bit_depth));
+        let enabled = own.is_none_or(|o| o.enabled);
         let space = opts.space_for(format);
         let color_space = match (is_color(map), space) {
             (false, _) | (true, ColorSpace::LinearRec709) => "linear",
@@ -568,6 +591,9 @@ pub fn list_outputs(project: &Project, ts: usize, mesh_name: &str, opts: &Export
                 warnings.push(format!("\"{stem}.{ext}\" is produced by more than one map; this one was renamed to \"{name}\""));
             }
             used.insert(name.to_ascii_lowercase());
+            if !enabled {
+                continue;
+            }
 
             // Use a UDIM name only when substituting its tile recovers the output name
             // Truncation or literal placeholder text can make that substitution ambiguous

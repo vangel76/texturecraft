@@ -11,7 +11,7 @@ use crate::TextureCraftApp;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::file_dialogs::{Bound, FileDialog};
 use crate::i18n::{tr, trf};
-use crate::state::{ExportUi, FileType, SIZE_OF_LARGEST_SET, SetExport};
+use crate::state::{ExportUi, FileType, MapExport, SIZE_OF_LARGEST_SET, SetExport};
 use crate::theme::{Tokens, caption};
 use crate::unavailable::NOT_AVAILABLE;
 use crate::widgets::{icon_button, primary_button};
@@ -194,7 +194,130 @@ pub(crate) fn set_params(app: &TextureCraftApp, ts: usize) -> serde_json::Value 
         p["padding"] = json!(padding);
         p["dilation"] = json!(dilation);
     }
+    // Entries past the template's maps (it lost some since) are left out
+    let count = app.session.export_preset(&o.maps_template).map_or(0, |t| t.maps.len());
+    if !o.maps.is_empty() && p.get("preset").and_then(serde_json::Value::as_str) == Some(o.maps_template.as_str()) {
+        p["maps"] = o
+            .maps
+            .iter()
+            .filter(|(i, _)| **i < count)
+            .map(|(i, m)| {
+                let mut v = json!({"map": i, "enabled": m.enabled});
+                if let Some(t) = &m.file_type {
+                    v["format"] = json!(t.format);
+                    v["bitDepth"] = json!(t.bit_depth);
+                }
+                v
+            })
+            .collect();
+    }
     p
+}
+
+/// The template texture set `ts` exports with
+fn set_template(app: &TextureCraftApp, ts: usize) -> String {
+    app.ui.export.sets.get(&ts).and_then(|o| o.preset.clone()).unwrap_or_else(|| app.ui.export.preset.clone())
+}
+
+/// Shorten a long file name pattern at the front, as the reference's Output maps rows do
+fn elide_front(text: &str) -> String {
+    const SHOWN: usize = 26;
+    let n = text.chars().count();
+    if n <= SHOWN { text.to_string() } else { format!("…{}", text.chars().skip(n - (SHOWN - 1)).collect::<String>()) }
+}
+
+/// A file type and bit depth as an Output maps row shows them ("png   8 bits")
+fn file_type_text(format: &str, bit_depth: u8) -> String {
+    format!("{}   {}", file_type_name(format), bits_label(bit_depth))
+}
+
+/// One Output maps row: the map, its file name pattern and what it is written as without its
+/// own override
+struct MapRow {
+    map: usize,
+    pattern: String,
+    inherited: FileType,
+}
+
+/// The rows of texture set `ts`'s Output maps: the template's maps the set has sources for
+fn map_rows(app: &mut TextureCraftApp, ts: usize) -> Vec<MapRow> {
+    let mut p = set_params(app, ts);
+    if let Some(o) = p.as_object_mut() {
+        o.remove("maps");
+    }
+    let preset = app.session.export_preset(&set_template(app, ts));
+    let Ok(plan) = texturecraft_engine::execute(&mut app.session, "export.plan", &p) else { return Vec::new() };
+    let mut rows: Vec<MapRow> = Vec::new();
+    for f in plan.as_array().into_iter().flatten() {
+        let Some(map) = f.get("map").and_then(serde_json::Value::as_u64).map(|m| m as usize) else { continue };
+        if rows.iter().any(|r| r.map == map) {
+            continue;
+        }
+        let format = f.get("format").and_then(serde_json::Value::as_str).unwrap_or("png").to_string();
+        let bit_depth = f.get("bitDepth").and_then(serde_json::Value::as_u64).unwrap_or(8) as u8;
+        let pattern = preset.as_ref().and_then(|p| p.maps.get(map)).map(|m| m.file.clone()).unwrap_or_default();
+        rows.push(MapRow { map, pattern, inherited: FileType { format: file_type_name(&format), bit_depth } });
+    }
+    rows
+}
+
+/// The Output maps section of texture set `ts`'s page
+fn output_maps(app: &mut TextureCraftApp, ui: &mut Ui, ts: usize) {
+    let rows = map_rows(app, ts);
+    let template = set_template(app, ts);
+    let o = app.ui.export.sets.entry(ts).or_default();
+    if o.maps_template != template {
+        o.maps.clear();
+        o.maps_template = template;
+    }
+    let mut menu = None;
+    header(ui, tr("Output maps"), |ui| {
+        list_menu(ui, |ui| {
+            for (i, label) in [tr("Check all"), tr("Uncheck all"), tr("Invert all")].into_iter().enumerate() {
+                if ui.button(label).clicked() {
+                    menu = Some(i);
+                }
+            }
+            ui.separator();
+            for (i, label) in [tr("Enable override for all items"), tr("Disable override for all items")].into_iter().enumerate() {
+                if ui.button(label).clicked() {
+                    menu = Some(3 + i);
+                }
+            }
+            ui.separator();
+        });
+    });
+    egui::Grid::new(("exp_maps", ts)).num_columns(3).spacing(vec2(8.0, 6.0)).show(ui, |ui| {
+        for row in &rows {
+            let m = o.maps.entry(row.map).or_default();
+            ui.checkbox(&mut m.enabled, "");
+            ui.add(egui::Label::new(elide_front(&row.pattern)).selectable(false)).on_hover_text(&row.pattern);
+            ui.horizontal(|ui| {
+                if icon_button(ui, ic::PENCIL_SIMPLE, tr("Enable override"), m.file_type.is_some(), ICON).clicked() {
+                    m.file_type = if m.file_type.is_some() { None } else { Some(row.inherited.clone()) };
+                }
+                match &mut m.file_type {
+                    Some(t) => file_type_combo(ui, ("exp_map", ts, row.map), t),
+                    None => {
+                        ui.label(file_type_text(&row.inherited.format, row.inherited.bit_depth));
+                    }
+                }
+            });
+            ui.end_row();
+        }
+    });
+    for row in &rows {
+        let m = o.maps.entry(row.map).or_default();
+        match menu {
+            Some(0) => m.enabled = true,
+            Some(1) => m.enabled = false,
+            Some(2) => m.enabled = !m.enabled,
+            Some(3) if m.file_type.is_none() => m.file_type = Some(row.inherited.clone()),
+            Some(4) => m.file_type = None,
+            _ => {}
+        }
+    }
+    o.maps.retain(|_, m| *m != MapExport::default());
 }
 
 /// The files the export writes for the ticked texture sets, set by set (an error stops the list)
@@ -578,10 +701,18 @@ fn set_page(app: &mut TextureCraftApp, ui: &mut Ui, ts: usize, builtins: &[Expor
                 }
             }
         }
-        Some(false) => *o = SetExport::default(),
+        Some(false) => {
+            o.preset = None;
+            o.file_type = None;
+            o.size = None;
+            o.padding = None;
+        }
         None => {}
     }
-    if !o.any() {
+    ui.add_space(8.0);
+    ui.separator();
+    egui::ScrollArea::vertical().id_salt("exp_maps_scroll").auto_shrink([false; 2]).show(ui, |ui| output_maps(app, ui, ts));
+    if app.ui.export.sets.get(&ts).is_some_and(SetExport::is_default) {
         app.ui.export.sets.remove(&ts);
     }
 }
@@ -670,6 +801,10 @@ pub fn show(app: &mut TextureCraftApp, ctx: &egui::Context) {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.button(tr("Include all")).on_hover_text(tr("Includes all Texture Sets, UV Tiles and output maps.")).clicked() {
                     app.ui.export.skip.clear();
+                    for o in app.ui.export.sets.values_mut() {
+                        o.maps.values_mut().for_each(|m| m.enabled = true);
+                    }
+                    app.ui.export.sets.retain(|_, o| !o.is_default());
                 }
             });
         });

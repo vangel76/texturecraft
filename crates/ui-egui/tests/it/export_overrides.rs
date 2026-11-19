@@ -25,6 +25,12 @@ fn click(h: &mut Harness<'_, TextureCraftApp>, label: &str) {
     h.run_steps(4);
 }
 
+/// Open the General Export Parameters menu
+fn page_menu(h: &mut Harness<'_, TextureCraftApp>) {
+    h.get_all_by_label(egui_phosphor::regular::LIST_CHECKS).nth(1).unwrap().click();
+    h.run_steps(4);
+}
+
 /// The `row`th "Enable override" button (Output template, File type, Size, Padding)
 fn toggle(h: &mut Harness<'_, TextureCraftApp>, row: usize) {
     h.get_all_by_label("Enable override").nth(row).unwrap().click();
@@ -52,7 +58,7 @@ fn png_width(path: &std::path::Path) -> u32 {
 fn a_texture_set_page_shows_what_it_inherits() {
     let h = harness();
     assert_eq!(h.state().ui.export.page, Some(0));
-    assert_eq!(h.get_all_by_label("Enable override").count(), 4);
+    assert!(h.get_all_by_label("Enable override").count() >= 4, "four rows, then the output maps");
     let own = h.state().session.doc.project.texture_sets[0].resolution;
     for text in ["Document channels + Normal + AO (No Alpha)", "Based on output template", &format!("{own}x{own} (Texture Set size)"), "Dilation infinite"] {
         assert!(h.query_by_label(text).is_some(), "{text}");
@@ -87,13 +93,13 @@ fn an_override_turns_the_row_into_a_list_and_marks_the_set() {
 #[test]
 fn the_header_menu_switches_every_override() {
     let mut h = harness();
-    click(&mut h, egui_phosphor::regular::LIST_CHECKS);
-    // The set list has the same menu button; the page's comes later
+    // The set list has the same menu button; the page header's is the second
+    page_menu(&mut h);
     click(&mut h, "Enable override for all items");
     let o = overrides(&h);
     assert!(o.preset.is_some() && o.file_type.is_some() && o.size.is_some() && o.padding.is_some(), "{o:?}");
     assert_eq!(o.file_type.unwrap().format, "png");
-    click(&mut h, egui_phosphor::regular::LIST_CHECKS);
+    page_menu(&mut h);
     click(&mut h, "Disable override for all items");
     assert!(h.state().ui.export.sets.is_empty());
 }

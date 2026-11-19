@@ -20,6 +20,7 @@ mod effect_decal;
 mod effect_rows;
 mod effect_sliders;
 mod empty_start;
+mod export_map_overrides;
 mod export_overrides;
 mod export_settings;
 mod export_template_guards;

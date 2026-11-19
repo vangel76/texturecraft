@@ -42,7 +42,8 @@ pub mod project_file;
 pub mod zip_read;
 
 pub use export::{
-    Dest, ExportInput, ExportOptions, ExportPreset, ExportedFile, FileFormat, MapSpec, Padding, PlannedFile, SourceRef, VirtualMap, list_outputs, render_maps,
+    Dest, ExportInput, ExportOptions, ExportPreset, ExportedFile, FileFormat, MapOverride, MapSpec, Padding, PlannedFile, SourceRef, VirtualMap, list_outputs,
+    render_maps,
 };
 pub use image_res::{DecodedImage, coverage_png, decode_image, decode_image_within, gray16_png, gray16_resource};
 pub use mesh_export::{GlbTextures, NamedFiles, UsdExport, UsdFormat, glb_bytes, glb_export_options, obj_bytes, obj_with_mtl, usd_bytes, usd_export_options};

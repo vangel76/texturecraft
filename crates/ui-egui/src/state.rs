@@ -336,12 +336,43 @@ pub struct SetExport {
     /// Padding type and dilation width.
     #[serde(default)]
     pub padding: Option<(String, u32)>,
+    /// The template `maps` belong to: they are dropped when the set's template changes.
+    #[serde(default)]
+    pub maps_template: String,
+    /// Per output map (by index into the template's maps) settings.
+    #[serde(default)]
+    pub maps: std::collections::BTreeMap<usize, MapExport>,
+}
+
+/// One output map's export settings on a texture set's page.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MapExport {
+    /// False leaves the map out of the export.
+    #[serde(default = "yes")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub file_type: Option<FileType>,
+}
+
+fn yes() -> bool {
+    true
+}
+
+impl Default for MapExport {
+    fn default() -> Self {
+        MapExport { enabled: true, file_type: None }
+    }
 }
 
 impl SetExport {
-    /// Whether anything is overridden.
+    /// Whether anything is overridden (the set is marked "*").
     pub fn any(&self) -> bool {
-        self.preset.is_some() || self.file_type.is_some() || self.size.is_some() || self.padding.is_some()
+        self.preset.is_some() || self.file_type.is_some() || self.size.is_some() || self.padding.is_some() || self.maps.values().any(|m| m.file_type.is_some())
+    }
+
+    /// Whether the set exports as the global settings say (no override, every map ticked).
+    pub fn is_default(&self) -> bool {
+        !self.any() && self.maps.values().all(|m| m.enabled)
     }
 }
 

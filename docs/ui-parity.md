@@ -186,7 +186,7 @@ Free rotation uses the same Alt+left drag (and right drag) as the constrained on
 
 ## Export textures window (batch 3, 2026-11-19)
 
-**UI + tests** (`crates/ui-egui/tests/it/export_settings.rs`, `export_overrides.rs`; code in
+**UI + tests** (`crates/ui-egui/tests/it/export_settings.rs`, `export_overrides.rs`, `export_map_overrides.rs`; code in
 [`export_window.rs`](../crates/ui-egui/src/export_window.rs)).
 
 - **SETTINGS** ([#671](https://github.com/storytold/texturecraft/issues/671)): the texture set
@@ -213,3 +213,10 @@ Free rotation uses the same Alt+left drag (and right drag) as the constrained on
   override for all items*. The template list leaves out the entries the reference leaves out
   there; sizes read "128x128" ... "8192x8192". Export, the footer count and LIST OF EXPORTS use
   each set's own settings.
+- **Output maps** ([#670](https://github.com/storytold/texturecraft/issues/670)): below the
+  parameters, one row per map the set exports: a tick, the file name pattern (cut at the front
+  with "…" when long, the whole pattern as tooltip), its own *Enable override* and the inherited
+  "png   8 bits". An override gives the map its own file type and bit depth (`maps` of
+  `file.exportTextures`). The header menu has *Check all*, *Uncheck all*, *Invert all*, *Enable
+  override for all items* and *Disable override for all items*; *Include all* ticks every map
+  again. The patterns are cut after 26 characters (the reference cuts by pixel width).

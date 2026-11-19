@@ -40,6 +40,12 @@ result is `{files}`. A layer without an enabled mask is an error. The layer menu
 file runs it; Copy mask to clipboard puts the same mask on the system clipboard as an 8-bit
 grayscale image (the whole tile atlas for a UV-tiled set).
 
+`file.exportTextures` and `export.plan` take `maps: [{map, enabled?, format?, bitDepth?}]`: per
+map of the template (`map` is its index in the template's maps) its own file type and bit depth,
+which win over the export's `format` and `bitDepth`, or `enabled: false` to leave it out. A
+left-out map keeps its file name reserved, so the other maps keep theirs. The Export textures
+window's Output maps rows send it.
+
 `effect.set {effect, filter: "blur", radius: 5}` replaces a filter in place, preserving its
 stack position, blend, opacity and visibility. Replacement filters start from defaults plus
 the supplied parameters; naming the current filter instead edits it without resetting omitted
@@ -369,7 +375,7 @@ File access follows `--read-root` / `--write-root` as for MCP.
 | `resource.import` | `{path}` |
 | `material.save` | `{path, layer?, name?}` |
 | `material.load` | `{path}` |
-| `textures.export` | `{dir, preset?, ts?, format?, padding?, size?, bitDepth?, dilation?, normalFormat?}` |
+| `textures.export` | `{dir, preset?, ts?, format?, padding?, size?, bitDepth?, dilation?, normalFormat?, maps?}` |
 | `render` | `{view?, width?, height?, yaw?, pitch?}` → `{width, height, png}` |
 
 Brush preset operations are engine commands. Send each through `command.run` with the shown
