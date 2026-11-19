@@ -11,7 +11,7 @@ use crate::TextureCraftApp;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::file_dialogs::{Bound, FileDialog};
 use crate::i18n::{tr, trf};
-use crate::state::{ExportUi, SIZE_OF_LARGEST_SET};
+use crate::state::{ExportUi, FileType, SIZE_OF_LARGEST_SET, SetExport};
 use crate::theme::{Tokens, caption};
 use crate::unavailable::NOT_AVAILABLE;
 use crate::widgets::{icon_button, primary_button};
@@ -38,6 +38,9 @@ const FIRST_GROUP: [&str; 7] = [
     "glTF PBR Metal Roughness",
     "glTF PBR Metal Roughness + Displacement texture (experimental)",
 ];
+
+/// First-group templates a texture set cannot override to (the reference leaves them out there)
+const NOT_PER_SET: [&str; 4] = ["Sketchfab", "USDz (Apple AR)", "glTF PBR Metal Roughness", "glTF PBR Metal Roughness + Displacement texture (experimental)"];
 
 /// The file types of the File type list, in the reference order
 pub(crate) const FILE_TYPES: [FileFormat; 8] =
@@ -104,6 +107,16 @@ fn size_label(size: u32) -> String {
     }
 }
 
+/// A size as a texture set page shows it: "1024x1024", marked when it is the set's own
+fn set_size_label(size: u32, own: u32) -> String {
+    if size == own { trf("{n}x{n} (Texture Set size)", &[("n", &size)]) } else { format!("{size}x{size}") }
+}
+
+/// The bit depth a file type is written with, as listed
+fn bits_label(bit_depth: u8) -> String {
+    trf("{n} bits", &[("n", &bit_depth)])
+}
+
 /// The largest texture set's resolution
 fn largest_set(app: &TextureCraftApp) -> u32 {
     app.session.doc.project.texture_sets.iter().map(|t| t.block_resolution()).max().unwrap_or(1024)
@@ -119,9 +132,8 @@ fn export_selection(app: &TextureCraftApp) -> Vec<usize> {
 fn export_sets(app: &mut TextureCraftApp) -> bool {
     let mut written = 0usize;
     for ts in export_selection(app) {
-        let mut p = export_params(app);
+        let mut p = set_params(app, ts);
         p["dir"] = json!(app.ui.export.dir);
-        p["ts"] = json!(ts);
         match app.run("file.exportTextures", p) {
             Some(r) => written += r.get("files").and_then(|f| f.as_array()).map(Vec::len).unwrap_or(0),
             None => return false,
@@ -134,12 +146,12 @@ fn export_sets(app: &mut TextureCraftApp) -> bool {
 /// In the browser the textures download (one zip for several files).
 #[cfg(target_arch = "wasm32")]
 fn export_sets(app: &mut TextureCraftApp) -> bool {
-    let sets = export_selection(app);
-    crate::web_files::export_textures(app, &export_params(app), &sets);
+    let jobs: Vec<(usize, serde_json::Value)> = export_selection(app).into_iter().map(|ts| (ts, set_params(app, ts))).collect();
+    crate::web_files::export_textures(app, &jobs);
     true
 }
 
-/// The `file.exportTextures` / `export.plan` parameters of the window's settings
+/// The `file.exportTextures` / `export.plan` parameters of the window's global settings
 pub(crate) fn export_params(app: &TextureCraftApp) -> serde_json::Value {
     let e = &app.ui.export;
     let mut p = json!({"preset": e.preset, "padding": e.padding, "dilation": e.dilation});
@@ -161,6 +173,39 @@ pub(crate) fn export_params(app: &TextureCraftApp) -> serde_json::Value {
         p["colorSpace"] = json!(e.color_space);
     }
     p
+}
+
+/// The parameters exporting texture set `ts`: the global settings with the set's overrides
+pub(crate) fn set_params(app: &TextureCraftApp, ts: usize) -> serde_json::Value {
+    let mut p = export_params(app);
+    p["ts"] = json!(ts);
+    let Some(o) = app.ui.export.sets.get(&ts) else { return p };
+    if let Some(preset) = &o.preset {
+        p["preset"] = json!(preset);
+    }
+    if let Some(t) = &o.file_type {
+        p["format"] = json!(t.format);
+        p["bitDepth"] = json!(t.bit_depth);
+    }
+    if let Some(size) = o.size {
+        p["size"] = json!(size);
+    }
+    if let Some((padding, dilation)) = &o.padding {
+        p["padding"] = json!(padding);
+        p["dilation"] = json!(dilation);
+    }
+    p
+}
+
+/// The files the export writes for the ticked texture sets, set by set (an error stops the list)
+fn planned_files(app: &mut TextureCraftApp) -> Result<Vec<serde_json::Value>, String> {
+    let mut files = Vec::new();
+    for ts in export_selection(app) {
+        let params = set_params(app, ts);
+        let plan = texturecraft_engine::execute(&mut app.session, "export.plan", &params).map_err(|e| e.to_string())?;
+        files.extend(plan.as_array().into_iter().flatten().cloned());
+    }
+    Ok(files)
 }
 
 /// A header with a menu or tool at its right end
@@ -346,54 +391,221 @@ fn global_page(app: &mut TextureCraftApp, ui: &mut Ui, builtins: &[ExportPreset]
     });
 }
 
-/// The left column: Global settings, then a row per texture set with its export tick
+/// The left column: Global settings, then a row per texture set with its export tick; a click
+/// on a row shows the set's page, "*" marks a set with overrides
 fn set_list(app: &mut TextureCraftApp, ui: &mut Ui) {
     ui.horizontal(|ui| {
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| list_menu(ui, |ui| set_checks_menu(app, ui)));
     });
-    let _ = ui.selectable_label(true, RichText::new(tr("Global settings")).strong());
+    if ui.selectable_label(app.ui.export.page.is_none(), RichText::new(tr("Global settings")).strong()).clicked() {
+        app.ui.export.page = None;
+    }
     for i in 0..app.session.set_count() {
         let name = app.session.doc.project.texture_sets.get(i).map(|t| t.name.clone()).unwrap_or_default();
         let mut on = !app.ui.export.skip.contains(&i);
-        if ui.checkbox(&mut on, name).changed() {
-            if on {
-                app.ui.export.skip.retain(|x| *x != i);
-            } else {
-                app.ui.export.skip.push(i);
+        ui.horizontal(|ui| {
+            if ui.checkbox(&mut on, "").changed() {
+                if on {
+                    app.ui.export.skip.retain(|x| *x != i);
+                } else {
+                    app.ui.export.skip.push(i);
+                }
+            }
+            if ui.selectable_label(app.ui.export.page == Some(i), name).clicked() {
+                app.ui.export.page = Some(i);
+            }
+            if app.ui.export.sets.get(&i).is_some_and(SetExport::any) {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label("*").on_hover_text(tr("Override(s) active"));
+                });
+            }
+        });
+    }
+}
+
+/// A texture set page row: the label, the override toggle, then the inherited value as text or,
+/// overridden, `edit`; true when the toggle was clicked
+fn override_row(ui: &mut Ui, label: &str, on: bool, inherited: &str, edit: impl FnOnce(&mut Ui)) -> bool {
+    ui.label(label);
+    let mut toggled = false;
+    ui.horizontal(|ui| {
+        toggled = icon_button(ui, ic::PENCIL_SIMPLE, tr("Enable override"), on, ICON).clicked();
+        if on {
+            edit(ui);
+        } else {
+            ui.label(inherited);
+        }
+    });
+    ui.end_row();
+    toggled
+}
+
+/// What texture set `ts` inherits from the global settings, as override starting points
+struct Inherited {
+    preset: String,
+    file_type: FileType,
+    size: u32,
+    padding: (String, u32),
+}
+
+fn inherited(app: &TextureCraftApp, ts: usize) -> Inherited {
+    let e = &app.ui.export;
+    let own = app.session.doc.project.texture_sets.get(ts).map_or(1024, |t| t.resolution);
+    let format = if e.format.is_empty() { FileFormat::Png.name().to_string() } else { file_type_name(&e.format) };
+    let bit_depth = FileFormat::from_extension(&format).map_or(8, |f| f.depth(if e.bit_depth == 0 { 8 } else { e.bit_depth }));
+    let size = match e.size {
+        0 => own,
+        SIZE_OF_LARGEST_SET => largest_set(app),
+        n => n,
+    };
+    Inherited { preset: e.preset.clone(), file_type: FileType { format, bit_depth }, size, padding: (e.padding.clone(), e.dilation) }
+}
+
+/// Switch one override of `o` on (from what the set inherits) or off
+fn toggle(o: &mut SetExport, row: usize, from: &Inherited) {
+    match row {
+        0 => o.preset = if o.preset.is_some() { None } else { Some(from.preset.clone()) },
+        1 => o.file_type = if o.file_type.is_some() { None } else { Some(from.file_type.clone()) },
+        2 => o.size = if o.size.is_some() { None } else { Some(from.size) },
+        _ => o.padding = if o.padding.is_some() { None } else { Some(from.padding.clone()) },
+    }
+}
+
+/// A file type dropdown (without "Based on output template") and its bit depth
+fn file_type_combo(ui: &mut Ui, id: (&str, usize, usize), t: &mut FileType) {
+    egui::ComboBox::from_id_salt(("type", id)).width(90.0).selected_text(t.format.clone()).show_ui(ui, |ui| {
+        for f in FILE_TYPES {
+            if ui.selectable_label(t.format == f.name(), f.name()).clicked() {
+                t.format = f.name().to_string();
+                t.bit_depth = f.depth(t.bit_depth);
             }
         }
+    });
+    let depths = FileFormat::from_extension(&t.format).map_or(&[8u8][..], FileFormat::bit_depths);
+    egui::ComboBox::from_id_salt(("bits", id)).width(90.0).selected_text(bits_label(t.bit_depth)).show_ui(ui, |ui| {
+        for &d in depths {
+            ui.selectable_value(&mut t.bit_depth, d, bits_label(d));
+        }
+    });
+}
+
+/// A texture set's page: its overrides of the global settings
+fn set_page(app: &mut TextureCraftApp, ui: &mut Ui, ts: usize, builtins: &[ExportPreset]) {
+    let from = inherited(app, ts);
+    let own = app.session.doc.project.texture_sets.get(ts).map_or(1024, |t| t.resolution);
+    let (first, rest) = template_groups(app, builtins);
+    let first: Vec<(&str, bool)> = first.into_iter().filter(|(n, _)| !NOT_PER_SET.contains(n)).collect();
+    let global = &app.ui.export;
+    let inherited_file_type = if global.format.is_empty() {
+        tr("Based on output template").to_string()
+    } else if global.bit_depth == 0 {
+        file_type_name(&global.format)
+    } else {
+        format!("{}   {}", file_type_name(&global.format), bits_label(global.bit_depth))
+    };
+    let inherited_size = match global.size {
+        0 => set_size_label(own, own),
+        _ => set_size_label(from.size, own),
+    };
+    let inherited_padding = tr(padding_label(&global.padding)).to_string();
+
+    let o = app.ui.export.sets.entry(ts).or_default();
+    let mut all = None;
+    header(ui, tr("General Export Parameters"), |ui| {
+        list_menu(ui, |ui| {
+            if ui.button(tr("Enable override for all items")).clicked() {
+                all = Some(true);
+            }
+            if ui.button(tr("Disable override for all items")).clicked() {
+                all = Some(false);
+            }
+            ui.separator();
+        });
+    });
+    let mut toggled = None;
+    egui::Grid::new(("exp_set_grid", ts)).num_columns(2).spacing(vec2(12.0, 8.0)).show(ui, |ui| {
+        let on = o.preset.is_some();
+        if override_row(ui, tr("Output template"), on, &from.preset, |ui| {
+            if let Some(p) = &mut o.preset {
+                template_combo(ui, "exp_set_preset", p, &first, &rest);
+            }
+        }) {
+            toggled = Some(0);
+        }
+        let on = o.file_type.is_some();
+        if override_row(ui, tr("File type"), on, &inherited_file_type, |ui| {
+            if let Some(t) = &mut o.file_type {
+                file_type_combo(ui, ("exp_set", ts, usize::MAX), t);
+            }
+        }) {
+            toggled = Some(1);
+        }
+        let on = o.size.is_some();
+        if override_row(ui, tr("Size"), on, &inherited_size, |ui| {
+            if let Some(size) = &mut o.size {
+                egui::ComboBox::from_id_salt("exp_set_size").width(VALUE_WIDTH).selected_text(set_size_label(*size, own)).show_ui(ui, |ui| {
+                    for r in SIZES {
+                        ui.selectable_value(size, r, set_size_label(r, own));
+                    }
+                });
+            }
+        }) {
+            toggled = Some(2);
+        }
+        let on = o.padding.is_some();
+        if override_row(ui, tr("Padding"), on, &inherited_padding, |ui| {
+            if let Some((padding, dilation)) = &mut o.padding {
+                egui::ComboBox::from_id_salt("exp_set_pad").width(260.0).selected_text(tr(padding_label(padding))).show_ui(ui, |ui| {
+                    for (v, l) in PADDINGS {
+                        ui.selectable_value(padding, v.to_string(), tr(l));
+                    }
+                });
+                dilation_button(ui, padding, dilation);
+            }
+        }) {
+            toggled = Some(3);
+        }
+    });
+    if let Some(row) = toggled {
+        toggle(o, row, &from);
+    }
+    match all {
+        Some(true) => {
+            for row in 0..4 {
+                let on = [o.preset.is_some(), o.file_type.is_some(), o.size.is_some(), o.padding.is_some()];
+                if !on.get(row).copied().unwrap_or(true) {
+                    toggle(o, row, &from);
+                }
+            }
+        }
+        Some(false) => *o = SetExport::default(),
+        None => {}
+    }
+    if !o.any() {
+        app.ui.export.sets.remove(&ts);
     }
 }
 
 /// The LIST OF EXPORTS tab: the files the export writes
 fn list_tab(app: &mut TextureCraftApp, ui: &mut Ui) {
     let tk = Tokens::get(ui.ctx());
-    let mut params = export_params(app);
-    params["ts"] = json!("all");
-    match texturecraft_engine::execute(&mut app.session, "export.plan", &params) {
-        Ok(v) => {
+    match planned_files(app) {
+        Ok(files) => {
             egui::ScrollArea::vertical().max_height(340.0).show(ui, |ui| {
-                for f in v.as_array().into_iter().flatten() {
-                    let ts = f.get("ts").and_then(|t| t.as_u64()).unwrap_or(0) as usize;
-                    if !app.ui.export.skip.contains(&ts) {
-                        ui.label(RichText::new(f.get("file").and_then(|x| x.as_str()).unwrap_or_default()).monospace());
-                    }
+                for f in files {
+                    ui.label(RichText::new(f.get("file").and_then(|x| x.as_str()).unwrap_or_default()).monospace());
                 }
             });
         }
         Err(e) => {
-            ui.label(RichText::new(e.to_string()).color(tk.danger));
+            ui.label(RichText::new(e).color(tk.danger));
         }
     }
 }
 
 /// How many files the export writes for the ticked texture sets
 fn selected_texture_count(app: &mut TextureCraftApp) -> usize {
-    let mut params = export_params(app);
-    params["ts"] = json!("all");
-    let Ok(plan) = texturecraft_engine::execute(&mut app.session, "export.plan", &params) else { return 0 };
-    let skipped = |file: &serde_json::Value| file.get("ts").and_then(serde_json::Value::as_u64).is_some_and(|ts| app.ui.export.skip.contains(&(ts as usize)));
-    plan.as_array().into_iter().flatten().filter(|file| !skipped(file)).count()
+    planned_files(app).map_or(0, |files| files.len())
 }
 
 /// Go back to the settings the window opened with
@@ -420,6 +632,7 @@ pub fn show(app: &mut TextureCraftApp, ctx: &egui::Context) {
         e.ask = None;
         e.opened_with = None;
         e.tab = 0;
+        e.page = None;
         return;
     }
 
@@ -473,8 +686,9 @@ pub fn show(app: &mut TextureCraftApp, ctx: &egui::Context) {
                 set_list(app, ui);
             });
             ui.separator();
-            ui.vertical(|ui| match app.ui.export.tab {
-                0 => global_page(app, ui, &presets),
+            ui.vertical(|ui| match (app.ui.export.tab, app.ui.export.page) {
+                (0, Some(ts)) if ts < app.session.set_count() => set_page(app, ui, ts, &presets),
+                (0, _) => global_page(app, ui, &presets),
                 _ => list_tab(app, ui),
             });
         });

@@ -315,6 +315,36 @@ impl Default for NewProject {
     }
 }
 
+/// A file type with its bit depth (an export override).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct FileType {
+    /// The listed name ("png", "targa", ...).
+    pub format: String,
+    pub bit_depth: u8,
+}
+
+/// One texture set's export overrides (None: the global setting).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct SetExport {
+    #[serde(default)]
+    pub preset: Option<String>,
+    #[serde(default)]
+    pub file_type: Option<FileType>,
+    /// Texels per side.
+    #[serde(default)]
+    pub size: Option<u32>,
+    /// Padding type and dilation width.
+    #[serde(default)]
+    pub padding: Option<(String, u32)>,
+}
+
+impl SetExport {
+    /// Whether anything is overridden.
+    pub fn any(&self) -> bool {
+        self.preset.is_some() || self.file_type.is_some() || self.size.is_some() || self.padding.is_some()
+    }
+}
+
 /// `ExportUi::size` for "Maximum size for all Texture Sets".
 pub const SIZE_OF_LARGEST_SET: u32 = u32::MAX;
 
@@ -339,7 +369,13 @@ pub struct ExportUi {
     pub color_space: String,
     /// Texture sets excluded from export.
     pub skip: Vec<usize>,
+    /// Per texture set (by index) overrides of the settings above.
+    #[serde(default)]
+    pub sets: std::collections::BTreeMap<usize, SetExport>,
     pub tab: u8,
+    /// SETTINGS tab: the texture set whose page shows (None: Global settings).
+    #[serde(skip)]
+    pub page: Option<usize>,
     /// Output templates tab: the selected user preset being edited (saved whenever it is valid).
     #[serde(skip)]
     pub draft: Option<texturecraft_engine::formats::ExportPreset>,
@@ -367,7 +403,9 @@ impl Default for ExportUi {
             normal_format: String::new(),
             color_space: String::new(),
             skip: Vec::new(),
+            sets: Default::default(),
             tab: 0,
+            page: None,
             draft: None,
             renaming: None,
             ask: None,

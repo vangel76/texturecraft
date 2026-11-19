@@ -186,7 +186,7 @@ Free rotation uses the same Alt+left drag (and right drag) as the constrained on
 
 ## Export textures window (batch 3, 2026-11-19)
 
-**UI + tests** (`crates/ui-egui/tests/it/export_settings.rs`; code in
+**UI + tests** (`crates/ui-egui/tests/it/export_settings.rs`, `export_overrides.rs`; code in
 [`export_window.rs`](../crates/ui-egui/src/export_window.rs)).
 
 - **SETTINGS** ([#671](https://github.com/storytold/texturecraft/issues/671)): the texture set
@@ -205,3 +205,11 @@ Free rotation uses the same Alt+left drag (and right drag) as the constrained on
   the reference tooltips (the padding tooltip names another vendor's product and is left out).
   Cancel, and closing the window, go back to the settings the window opened with; the window
   always opens on SETTINGS.
+- **Texture set pages** ([#669](https://github.com/storytold/texturecraft/issues/669)): a click
+  on a texture set row shows its *General Export Parameters*: Output template, File type, Size and
+  Padding with the inherited value as text (for example "1024x1024 (Texture Set size)"). The
+  pencil button ("Enable override") turns a row into its list; a set with an override gets "*"
+  ("Override(s) active"). The header menu has *Enable override for all items* and *Disable
+  override for all items*. The template list leaves out the entries the reference leaves out
+  there; sizes read "128x128" ... "8192x8192". Export, the footer count and LIST OF EXPORTS use
+  each set's own settings.
