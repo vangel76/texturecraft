@@ -76,6 +76,7 @@ mod tool_availability;
 mod tool_settings_saved;
 mod toolbar;
 mod user_smart_mask;
+mod window_menu_684;
 
 mod stencil;
 mod symmetry;

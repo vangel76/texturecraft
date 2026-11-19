@@ -428,6 +428,12 @@ pub struct UiState {
     pub(crate) inactive_mode_dock: Dock,
     #[serde(default)]
     pub(crate) dock_is_baking: bool,
+    /// Window ▸ Toolbars ▸ Docks: the right bar of panel icons
+    #[serde(default = "default_true")]
+    pub toolbar_docks: bool,
+    /// Window ▸ Toolbars ▸ Tools: the tool buttons on the left
+    #[serde(default = "default_true")]
+    pub toolbar_tools: bool,
     /// The bake layout version the bake dock was saved with; 0 before versions existed.
     #[serde(default)]
     pub(crate) bake_layout_version: u32,
@@ -599,6 +605,8 @@ impl Default for UiState {
             rail_panel: None,
             inactive_mode_dock: Dock::for_baking(),
             dock_is_baking: false,
+            toolbar_docks: true,
+            toolbar_tools: true,
             bake_layout_version: BAKE_LAYOUT_VERSION,
             selected_baked_map: None,
             hide_ui: false,

@@ -71,6 +71,19 @@ that closes it back onto the bar; the float is saved with the UI state.
   and *Export shaders parameters* greyed, *Include all*, *Save settings* and "N textures selected
   for export"). The prompt's *With displacement/tessellation* choice and both option checkboxes are
   greyed; TextureCraft exports the mesh as it is.
+- **Window menu:** Views lists *Renderer Settings* (a panel of its own: the tracer in use, the
+  samples so far and a note; it floats when first opened and is not opened by itself in Rendering
+  mode), *Properties - Paint* while a project is open (other tools read "Properties - <tool>",
+  not measured), and *Python Console* and *Online assets* greyed with "Not available yet" (the
+  reference's online assets panel is named neutrally). Toolbars has *Docks* (the right bar),
+  *Plugins* (greyed, unchecked, there is no plugin bar) and *Tools* (the tool shelf). *Save UI
+  Layout* has *Painting mode*, *Rendering mode* and *Baking mode*; each writes a JSON layout file
+  with that mode's panels (Rendering uses the painting dock). *Load UI Layout* asks "Select a UI
+  layout file." with TextureCraft's own filter name "UI layout". *Hide UI* shows its check mark.
+  Views are greyed per mode as measured (Rendering enables Display Settings, Log, Renderer
+  Settings, Shader settings and Texture Set List; Baking greys Assets, Export, Layers, Properties,
+  Renderer Settings, Shader settings and Texture Set Settings). Rendering shares the painting dock,
+  so panels its Views menu greys out are not closed there.
 - **Project templates:** *File ▸ More save options* holds *Save as template...* (tooltip "Save as
   template"; save dialog "Save template" in the user templates folder with one file type, no
   confirmation, the template shows up in New project at once), *Save and reduce file size*

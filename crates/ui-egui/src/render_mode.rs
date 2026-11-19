@@ -855,6 +855,23 @@ impl RenderView {
     }
 }
 
+/// Window > Views > Renderer Settings: what the path tracer is doing. It sets its samples per
+/// frame by itself and takes the camera, environment and shadows from Display Settings.
+pub(crate) fn settings_body(app: &mut TextureCraftApp, ui: &mut Ui) {
+    let tokens = Tokens::get(ui.ctx());
+    let tracer = if app.render.gpu.is_some() { tr("GPU") } else { tr("CPU") };
+    ui.horizontal(|ui| {
+        ui.label(tr("Tracer"));
+        ui.label(RichText::new(tracer).color(tokens.text_dim));
+    });
+    ui.horizontal(|ui| {
+        ui.label(tr("Samples"));
+        ui.label(RichText::new(app.render.samples.to_string()).color(tokens.text_dim));
+    });
+    ui.add_space(6.0);
+    ui.label(RichText::new(tr("The path tracer adds samples while the view stands still. Environment, shadows and camera come from Display Settings; GPU or CPU tracing is set in Settings.")).color(tokens.text_dim));
+}
+
 /// Stop rendering (leaving Rendering mode frees the worker, the GPU memory and the image).
 pub fn stop(app: &mut TextureCraftApp) {
     drop_gpu(app);

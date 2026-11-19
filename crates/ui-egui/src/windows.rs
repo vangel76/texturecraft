@@ -378,28 +378,50 @@ pub fn remember(app: &mut TextureCraftApp, path: &str) {
     app.ui.recent.truncate(10);
 }
 
-/// Window › Save / Load UI layout: panels, windows and view settings as a JSON file.
+/// Window › Save UI Layout › Painting / Rendering / Baking mode: the panels, windows and view
+/// settings as that mode shows them, as a JSON file.
 #[cfg(not(target_arch = "wasm32"))]
-pub fn layout_file(app: &mut TextureCraftApp, save: bool) {
+pub fn save_layout(app: &mut TextureCraftApp, mode: crate::state::Mode) {
+    use crate::state::Mode;
     let dir = crate::user_dir("layouts");
-    let dialog = if save { FileDialog::save().file_name("layout.json") } else { FileDialog::open() };
-    app.ask_file(dialog.filter(tr("UI layout"), &["json"]).directory(dir.clone()), Bound::App, move |app, paths| {
+    let name = match mode {
+        Mode::Painting => "painting-mode.json",
+        Mode::Rendering => "rendering-mode.json",
+        Mode::Baking => "baking-mode.json",
+    };
+    let dialog = FileDialog::save().file_name(name).filter(tr("UI layout"), &["json"]).directory(dir.clone());
+    app.ask_file(dialog, Bound::App, move |app, paths| {
         let Some(path) = paths.first() else { return };
-        let result = if save {
-            let layout = crate::UiState { recent: Vec::new(), named_layouts: Vec::new(), ..app.ui.clone() };
-            std::fs::create_dir_all(&dir)
-                .map_err(|e| e.to_string())
-                .and_then(|_| serde_json::to_vec_pretty(&layout).map_err(|e| e.to_string()))
-                .and_then(|bytes| std::fs::write(path, bytes).map_err(|e| e.to_string()))
-                .map(|_| trf("Saved UI layout {path}", &[("path", &path.display())]))
-        } else {
-            std::fs::read(path).map_err(|e| e.to_string()).and_then(|bytes| serde_json::from_slice::<crate::UiState>(&bytes).map_err(|e| e.to_string())).map(
-                |layout| {
-                    app.ui.adopt_layout(layout);
-                    trf("Loaded UI layout {path}", &[("path", &path.display())])
-                },
-            )
-        };
+
+        // The file carries both docks; the mode's own is the one in use when it is loaded
+        let mut layout = crate::UiState { recent: Vec::new(), named_layouts: Vec::new(), mode, ..app.ui.clone() };
+        layout.sync_mode_dock();
+        let result = std::fs::create_dir_all(&dir)
+            .map_err(|e| e.to_string())
+            .and_then(|_| serde_json::to_vec_pretty(&layout).map_err(|e| e.to_string()))
+            .and_then(|bytes| std::fs::write(path, bytes).map_err(|e| e.to_string()))
+            .map(|_| trf("Saved UI layout {path}", &[("path", &path.display())]));
+        match result {
+            Ok(msg) => app.toast(msg, false),
+            Err(e) => app.toast(trf("UI layout: {error}", &[("error", &e)]), true),
+        }
+    });
+}
+
+/// Window › Load UI Layout: read a layout file saved by Save UI Layout.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn load_layout(app: &mut TextureCraftApp) {
+    let dir = crate::user_dir("layouts");
+    let dialog = FileDialog::open().title(tr("Select a UI layout file.")).filter(tr("UI layout"), &["json"]).directory(dir);
+    app.ask_file(dialog, Bound::App, move |app, paths| {
+        let Some(path) = paths.first() else { return };
+        let result = std::fs::read(path)
+            .map_err(|e| e.to_string())
+            .and_then(|bytes| serde_json::from_slice::<crate::UiState>(&bytes).map_err(|e| e.to_string()))
+            .map(|layout| {
+                app.ui.adopt_layout(layout);
+                trf("Loaded UI layout {path}", &[("path", &path.display())])
+            });
         match result {
             Ok(msg) => app.toast(msg, false),
             Err(e) => app.toast(trf("UI layout: {error}", &[("error", &e)]), true),
@@ -426,7 +448,12 @@ pub fn save_as_template(app: &mut TextureCraftApp) {
 
 /// The browser has no file paths; layouts persist with the rest of the UI state.
 #[cfg(target_arch = "wasm32")]
-pub fn layout_file(app: &mut TextureCraftApp, _save: bool) {
+pub fn save_layout(app: &mut TextureCraftApp, _mode: crate::state::Mode) {
+    app.toast(tr("Saving UI layouts to files is available in the desktop app"), false);
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn load_layout(app: &mut TextureCraftApp) {
     app.toast(tr("Saving UI layouts to files is available in the desktop app"), false);
 }
 

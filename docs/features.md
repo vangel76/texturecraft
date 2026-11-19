@@ -206,6 +206,13 @@ Everything TextureCraft does today, by area. What's still missing is in [`ROADMA
 - **Dockable, tabbed and floating panels**, saved layouts, and panels that reopen where you closed
   them. The right bar's panels (Export, Log, Display Settings, Shader Settings, History) pop out
   beside it; *Undock* makes one a floating window, and its *Dock* button puts it back on the bar.
+- **Window menu** as in the reference: Views (with *Renderer Settings*, a small panel for Rendering
+  mode, and *Properties - Paint*, which names the tool), Toolbars (*Docks*, the right bar, and *Tools*, the
+  tool shelf, switch off and on; *Plugins* is greyed), *Save UI Layout* for the Painting, Rendering or
+  Baking mode, *Load UI Layout* ("Select a UI layout file.") and *Hide UI* with its check mark. Views
+  are greyed per mode as measured: Rendering keeps Display Settings, Log, Renderer Settings, Shader
+  Settings and Texture Sets; Baking greys Assets, Export, Layers, Properties, Renderer Settings, Shader
+  Settings and Texture Set Settings. *Python Console* and *Online assets* are greyed ("Not available yet").
 - **Display and Shader Settings** are one scrolling page each: their section tabs jump to a
   section, and scrolling highlights the tab of the section in view.
 - A **Log** panel with a *GENERAL* and an *ASSETS* tab: asset messages (resources that do not

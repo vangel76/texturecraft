@@ -77,11 +77,19 @@ pub const CATALOG: &[Item] = &[
     sub("Window", "Views", "Mesh Map Bakers", "ui.view.meshMapBakers", None),
     sub("Window", "Views", "Mesh Map Settings", "ui.view.bakeMaps", None),
     sub("Window", "Views", "Properties", "ui.view.properties", None),
+    sub("Window", "Views", "Python Console", "ui.view.pythonConsole", None),
+    sub("Window", "Views", "Renderer Settings", "ui.view.renderer", None),
     sub("Window", "Views", "Shader Settings", "ui.view.shader", None),
+    sub("Window", "Views", "Online assets", "ui.view.onlineAssets", None),
     sub("Window", "Views", "Texture Sets", "ui.view.textureSetList", None),
     sub("Window", "Views", "Texture Set Settings", "ui.view.textureSetSettings", None),
+    sub("Window", "Toolbars", "Docks", "ui.toolbar.docks", None),
+    sub("Window", "Toolbars", "Plugins", "ui.toolbar.plugins", None),
+    sub("Window", "Toolbars", "Tools", "ui.toolbar.tools", None),
     sep("Window"),
-    sub("Window", "Save UI Layout", "Save current layout...", "ui.layout.save", None),
+    sub("Window", "Save UI Layout", "Painting mode", "ui.layout.save.painting", None),
+    sub("Window", "Save UI Layout", "Rendering mode", "ui.layout.save.rendering", None),
+    sub("Window", "Save UI Layout", "Baking mode", "ui.layout.save.baking", None),
     it("Window", "Load UI Layout", "ui.layout.load", None),
     sub("Window", "Layouts", "Save current layout as...", "ui.layout.saveAs", None),
     sub("Window", "Layouts", "Manage layouts...", "ui.layout.manage", None),
@@ -145,7 +153,16 @@ fn ui_needs_project(id: &str) -> bool {
 
 /// Menu items the reference has and TextureCraft has no function for yet: shown greyed with the
 /// hint "Not available yet", never run, and not listed as implemented
-pub const UNAVAILABLE: [&str; 1] = ["ui.saveReduced"];
+pub const UNAVAILABLE: [&str; 4] = ["ui.saveReduced", "ui.view.pythonConsole", "ui.view.onlineAssets", "ui.toolbar.plugins"];
+
+/// The text of a menu item: the Properties view names the tool, as "Properties - Paint", while a
+/// project is open
+fn item_label(app: &TextureCraftApp, item: &Item) -> String {
+    if item.id == "ui.view.properties" && app.session.project_open {
+        return format!("{} - {}", tr(item.label), tr(app.session.tool.tool.label()));
+    }
+    tr(item.label).to_string()
+}
 
 /// The tooltip the reference shows on a menu item
 fn tooltip_of(id: &str) -> Option<&'static str> {
@@ -232,8 +249,12 @@ pub fn invoke(app: &mut TextureCraftApp, ctx: &egui::Context, id: &str) {
         "ui.navButtons" => app.ui.nav_buttons = !app.ui.nav_buttons,
         "ui.resetPanelLayout" => app.ui.reset_panel_layout(),
         "ui.resetUi" => app.ui.windows.confirm_reset_ui = true,
-        "ui.layout.save" => crate::windows::layout_file(app, true),
-        "ui.layout.load" => crate::windows::layout_file(app, false),
+        "ui.layout.save.painting" => crate::windows::save_layout(app, Mode::Painting),
+        "ui.layout.save.rendering" => crate::windows::save_layout(app, Mode::Rendering),
+        "ui.layout.save.baking" => crate::windows::save_layout(app, Mode::Baking),
+        "ui.layout.load" => crate::windows::load_layout(app),
+        "ui.toolbar.docks" => app.ui.toolbar_docks = !app.ui.toolbar_docks,
+        "ui.toolbar.tools" => app.ui.toolbar_tools = !app.ui.toolbar_tools,
         "ui.layout.saveAs" => app.ui.layout_dialog = Some(crate::named_layouts::LayoutDialog::Save(String::new())),
         "ui.layout.manage" => app.ui.layout_dialog = Some(crate::named_layouts::LayoutDialog::Manage { renaming: None, deleting: None }),
         "ui.uvChecker" => {
@@ -311,21 +332,29 @@ pub fn menu_bar(app: &mut TextureCraftApp, ui: &mut egui::Ui) {
     });
 }
 
-fn menu_item(app: &mut TextureCraftApp, ctx: &egui::Context, ui: &mut egui::Ui, item: &Item) {
-    let on = enabled(app, item.id);
-    let mut b = egui::Button::new(tr(item.label));
-    if let Some(sc) = crate::keymap::shortcut_of(&app.ui.keymap, item.id) {
-        b = b.shortcut_text(sc);
-    }
-    let checked = match item.id {
+/// The check mark an item shows: the mode and view items, the toolbars and Hide UI (None: not checkable)
+pub fn checked(app: &TextureCraftApp, id: &str) -> Option<bool> {
+    match id {
         "ui.mode.paint" => Some(app.ui.mode == Mode::Painting),
         "ui.mode.bake" => Some(app.ui.mode == Mode::Baking),
         "ui.mode.render" => Some(app.ui.mode == Mode::Rendering),
         "ui.navButtons" => Some(app.ui.nav_buttons),
+        "ui.hideUi" => Some(app.ui.hide_ui),
+        "ui.toolbar.docks" => Some(app.ui.toolbar_docks),
+        "ui.toolbar.tools" => Some(app.ui.toolbar_tools),
         "camera.perspective" => Some(!app.session.camera.ortho),
         "camera.orthographic" => Some(app.session.camera.ortho),
         id => crate::docking::view_panel(id).map(|p| app.ui.dock.is_open(p)),
-    };
+    }
+}
+
+fn menu_item(app: &mut TextureCraftApp, ctx: &egui::Context, ui: &mut egui::Ui, item: &Item) {
+    let on = enabled(app, item.id);
+    let mut b = egui::Button::new(item_label(app, item));
+    if let Some(sc) = crate::keymap::shortcut_of(&app.ui.keymap, item.id) {
+        b = b.shortcut_text(sc);
+    }
+    let checked = checked(app, item.id);
     if let Some(c) = checked {
         b = b.selected(c);
     }

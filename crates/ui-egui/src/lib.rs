@@ -931,9 +931,11 @@ impl eframe::App for TextureCraftApp {
             titlebar::show(self, ui);
             banner(self, ui);
             toolbar::status_bar(self, ui);
-            toolbar::tool_shelf(self, ui);
+            if self.ui.toolbar_tools {
+                toolbar::tool_shelf(self, ui);
+            }
             self.ui.sync_mode_dock();
-            if self.ui.mode != state::Mode::Baking {
+            if self.ui.mode != state::Mode::Baking && self.ui.toolbar_docks {
                 toolbar::rail(self, ui);
             }
         }
