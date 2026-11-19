@@ -186,7 +186,7 @@ Free rotation uses the same Alt+left drag (and right drag) as the constrained on
 
 ## Export textures window (batch 3, 2026-11-19)
 
-**UI + tests** (`crates/ui-egui/tests/it/export_settings.rs`, `export_overrides.rs`, `export_map_overrides.rs`, `export_file_types.rs`; code in
+**UI + tests** (`crates/ui-egui/tests/it/export_settings.rs`, `export_overrides.rs`, `export_map_overrides.rs`, `export_file_types.rs`, `export_progress.rs`; code in
 [`export_window.rs`](../crates/ui-egui/src/export_window.rs)).
 
 - **SETTINGS** ([#671](https://github.com/storytold/texturecraft/issues/671)): the texture set
@@ -228,3 +228,15 @@ Free rotation uses the same Alt+left drag (and right drag) as the constrained on
   bits" for exr; empty and greyed for "Based on output template". Padding adds "Dilation +
   diffusion" with a dilation width. PGM writes colour maps as their luminance; PSD holds the
   merged image without layers.
+- **Exporting** ([#673](https://github.com/storytold/texturecraft/issues/673)): Export switches
+  to LIST OF EXPORTS and writes one texture set per frame; the bottom bar becomes a progress bar
+  with the percent and *Cancel Export* (it stops before the next texture set). The CONSOLE pane
+  (its toggle "Hide Console") logs the reference's steps: "Preparing export...", "Exporting
+  texture set **<set>**..." before each step, "Computing textures results", "Preparing textures
+  writing", "Writing <file> texture on disk", "Finalizing textures writing", "Bitmaps write
+  finalization...", "Finalizing export...", then "Export successfully finished",
+  "Successfully exported:" and the files in green. The window stays open. LIST OF EXPORTS is a
+  tree per texture set (file, size such as "1024x1024 (Texture Set size)", file type, bit depth;
+  the full path as tooltip) with *Open output directory* at the top right. The files are
+  written when a texture set is done, so its "Writing ..." lines follow its work instead of
+  coming one by one.

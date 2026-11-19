@@ -23,6 +23,7 @@ mod empty_start;
 mod export_file_types;
 mod export_map_overrides;
 mod export_overrides;
+mod export_progress;
 mod export_settings;
 mod export_template_guards;
 mod file_dialogs;

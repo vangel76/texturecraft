@@ -123,6 +123,15 @@ fn export_writes_each_set_with_its_overrides_and_cancel_drops_them() {
     h.state_mut().ui.export.sets.insert(0, SetExport { size: Some(128), ..SetExport::default() });
     h.run_steps(3);
     click(&mut h, "Export");
+
+    // The export writes a texture set per frame
+    for _ in 0..64 {
+        if h.state().ui.export.job.is_none() {
+            break;
+        }
+        h.run_steps(1);
+    }
+    h.run_steps(2);
     let sets: Vec<String> = h.state().session.doc.project.texture_sets.iter().map(|t| format!("_{}_", t.name)).collect();
     let files: Vec<_> = std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|e| e == "png")).collect();
     let of = |set: &str| files.iter().filter(|f| f.file_name().unwrap().to_string_lossy().contains(set)).collect::<Vec<_>>();
@@ -139,6 +148,8 @@ fn export_writes_each_set_with_its_overrides_and_cancel_drops_them() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 
+    // The window stays open after an export; Save settings keeps the overrides
+    click(&mut h, "Save settings");
     h.state_mut().ui.windows.export = true;
     h.run_steps(4);
     h.state_mut().ui.export.sets.insert(0, SetExport { size: Some(512), ..SetExport::default() });

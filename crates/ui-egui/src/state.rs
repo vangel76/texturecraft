@@ -379,6 +379,27 @@ impl SetExport {
     }
 }
 
+/// A running texture export: the texture sets still to write, one per frame.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ExportJob {
+    pub pending: Vec<usize>,
+    pub total: usize,
+    /// File names written so far.
+    pub written: Vec<String>,
+    /// The frame that wrote the last texture set (a frame's second pass writes none).
+    pub frame: u64,
+}
+
+/// A line of the Export textures window's console.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ConsoleLine {
+    Step(String),
+    /// "Exporting texture set <name>..." with the name in bold.
+    Set(String),
+    /// A success line, in green.
+    Done(String),
+}
+
 /// `ExportUi::size` for "Maximum size for all Texture Sets".
 pub const SIZE_OF_LARGEST_SET: u32 = u32::MAX;
 
@@ -425,6 +446,14 @@ pub struct ExportUi {
     /// The settings when the window opened: Cancel goes back to them.
     #[serde(skip)]
     pub opened_with: Option<Box<ExportUi>>,
+    /// The export running in the window.
+    #[serde(skip)]
+    pub job: Option<ExportJob>,
+    /// LIST OF EXPORTS: the console's lines and whether it is hidden.
+    #[serde(skip)]
+    pub console: Vec<ConsoleLine>,
+    #[serde(skip)]
+    pub console_hidden: bool,
 }
 
 impl Default for ExportUi {
@@ -448,6 +477,9 @@ impl Default for ExportUi {
             renaming: None,
             ask: None,
             opened_with: None,
+            job: None,
+            console: Vec::new(),
+            console_hidden: false,
         }
     }
 }

@@ -125,6 +125,15 @@ fn export_writes_a_map_with_its_own_file_type() {
     e.skip = (1..32).collect();
     h.run_steps(3);
     click(&mut h, "Export");
+
+    // The export writes a texture set per frame
+    for _ in 0..64 {
+        if h.state().ui.export.job.is_none() {
+            break;
+        }
+        h.run_steps(1);
+    }
+    h.run_steps(2);
     let names: Vec<String> = std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
     assert_eq!(names.iter().filter(|n| n.ends_with(".tga")).count(), 1, "{names:?}");
     let _ = std::fs::remove_dir_all(&dir);

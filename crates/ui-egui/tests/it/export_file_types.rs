@@ -115,6 +115,15 @@ fn export_writes_the_chosen_type_and_depth() {
     e.bit_depth = 16;
     h.run_steps(3);
     click(&mut h, "Export");
+
+    // The export writes a texture set per frame
+    for _ in 0..64 {
+        if h.state().ui.export.job.is_none() {
+            break;
+        }
+        h.run_steps(1);
+    }
+    h.run_steps(2);
     let files: Vec<_> = std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.path()).collect();
     assert!(!files.is_empty());
     for f in &files {

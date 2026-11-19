@@ -11,7 +11,7 @@ use crate::TextureCraftApp;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::file_dialogs::{Bound, FileDialog};
 use crate::i18n::{n_, tr, trf};
-use crate::state::{ExportUi, FileType, MapExport, SIZE_OF_LARGEST_SET, SetExport};
+use crate::state::{ConsoleLine, ExportUi, FileType, MapExport, SIZE_OF_LARGEST_SET, SetExport};
 use crate::theme::{Tokens, caption};
 use crate::unavailable::NOT_AVAILABLE;
 use crate::widgets::{icon_button, primary_button};
@@ -203,28 +203,74 @@ fn export_selection(app: &TextureCraftApp) -> Vec<usize> {
     (0..app.session.set_count()).filter(|i| !app.ui.export.skip.contains(i)).collect()
 }
 
-/// Export the selected texture sets; false when a command failed (its error is already shown).
+/// Start exporting the selected texture sets: the window shows LIST OF EXPORTS, the console and
+/// a progress bar, and writes one texture set per frame.
 #[cfg(not(target_arch = "wasm32"))]
-fn export_sets(app: &mut TextureCraftApp) -> bool {
-    let mut written = 0usize;
-    for ts in export_selection(app) {
-        let mut p = set_params(app, ts);
-        p["dir"] = json!(app.ui.export.dir);
-        match app.run("file.exportTextures", p) {
-            Some(r) => written += r.get("files").and_then(|f| f.as_array()).map(Vec::len).unwrap_or(0),
-            None => return false,
-        }
-    }
-    app.toast(trf("Exported {n} textures to {folder}", &[("n", &written), ("folder", &app.ui.export.dir)]), false);
-    true
+fn start_export(app: &mut TextureCraftApp) {
+    let pending = export_selection(app);
+    let e = &mut app.ui.export;
+    e.tab = 2;
+    e.console = vec![ConsoleLine::Step(tr("Preparing export...").into())];
+    e.job = Some(crate::state::ExportJob { total: pending.len(), pending, written: Vec::new(), frame: 0 });
 }
 
 /// In the browser the textures download (one zip for several files).
 #[cfg(target_arch = "wasm32")]
-fn export_sets(app: &mut TextureCraftApp) -> bool {
+fn start_export(app: &mut TextureCraftApp) {
     let jobs: Vec<(usize, serde_json::Value)> = export_selection(app).into_iter().map(|ts| (ts, set_params(app, ts))).collect();
     crate::web_files::export_textures(app, &jobs);
-    true
+}
+
+/// Write the next texture set of the running export, logging the steps as the reference does;
+/// the last one finishes the export. A failed command (its error already shown) stops it.
+fn export_step(app: &mut TextureCraftApp, frame: u64) {
+    let Some(job) = app.ui.export.job.as_mut() else { return };
+    if job.frame == frame {
+        return;
+    }
+    job.frame = frame;
+    if job.pending.is_empty() {
+        let written = std::mem::take(&mut job.written);
+        let mut lines = vec![
+            ConsoleLine::Step(tr("Bitmaps write finalization...").into()),
+            ConsoleLine::Step(tr("Finalizing export...").into()),
+            ConsoleLine::Done(tr("Export successfully finished").into()),
+            ConsoleLine::Done(tr("Successfully exported:").into()),
+        ];
+        lines.extend(written.into_iter().map(ConsoleLine::Done));
+        app.ui.export.console.extend(lines);
+        app.ui.export.job = None;
+        return;
+    }
+    let ts = job.pending.remove(0);
+    let name = app.session.doc.project.texture_sets.get(ts).map(|t| t.name.clone()).unwrap_or_default();
+    let set = || ConsoleLine::Set(name.clone());
+    app.ui.export.console.extend([set(), set(), ConsoleLine::Step(tr("Computing textures results").into())]);
+    let mut p = set_params(app, ts);
+    p["dir"] = json!(app.ui.export.dir);
+    let Some(r) = app.run("file.exportTextures", p) else {
+        app.ui.export.job = None;
+        return;
+    };
+    let files: Vec<String> = r
+        .get("files")
+        .and_then(|f| f.as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|f| f.as_str())
+        .map(|f| std::path::Path::new(f).file_name().map_or_else(|| f.to_string(), |n| n.to_string_lossy().into_owned()))
+        .collect();
+    let mut lines = vec![set(), ConsoleLine::Step(tr("Preparing textures writing").into())];
+    for f in &files {
+        let stem = f.rsplit_once('.').map_or(f.as_str(), |(stem, _)| stem);
+        lines.push(set());
+        lines.push(ConsoleLine::Step(trf("Writing {file} texture on disk", &[("file", &stem)])));
+    }
+    lines.extend([set(), ConsoleLine::Step(tr("Finalizing textures writing").into())]);
+    app.ui.export.console.extend(lines);
+    if let Some(job) = app.ui.export.job.as_mut() {
+        job.written.extend(files);
+    }
 }
 
 /// The `file.exportTextures` / `export.plan` parameters of the window's global settings
@@ -764,20 +810,107 @@ fn set_page(app: &mut TextureCraftApp, ui: &mut Ui, ts: usize, builtins: &[Expor
     }
 }
 
-/// The LIST OF EXPORTS tab: the files the export writes
+/// Width of the LIST OF EXPORTS console
+const CONSOLE_WIDTH: f32 = 300.0;
+
+/// Green of the console's success lines
+fn success(tk: &Tokens) -> egui::Color32 {
+    if tk.dark { egui::Color32::from_rgb(110, 200, 120) } else { egui::Color32::from_rgb(30, 130, 50) }
+}
+
+/// The LIST OF EXPORTS tab: a tree of the files each ticked texture set exports (file, size,
+/// file type, bit depth; the full path as tooltip), and the console
 fn list_tab(app: &mut TextureCraftApp, ui: &mut Ui) {
     let tk = Tokens::get(ui.ctx());
-    match planned_files(app) {
-        Ok(files) => {
-            egui::ScrollArea::vertical().max_height(340.0).show(ui, |ui| {
-                for f in files {
-                    ui.label(RichText::new(f.get("file").and_then(|x| x.as_str()).unwrap_or_default()).monospace());
+    let hidden = app.ui.export.console_hidden;
+    let tree_width = ui.available_width() - if hidden { 24.0 } else { CONSOLE_WIDTH + 24.0 };
+    ui.vertical(|ui| {
+        ui.set_width(tree_width);
+        egui::ScrollArea::vertical().id_salt("exp_list").auto_shrink([false; 2]).show(ui, |ui| export_tree(app, ui, &tk));
+    });
+
+    // The thin toggle at the console's left edge
+    let toggle = if hidden { ic::CARET_DOUBLE_LEFT } else { ic::CARET_DOUBLE_RIGHT };
+    let r = ui.add_sized(vec2(14.0, ui.available_height()), egui::Button::new(toggle).frame(false));
+    let r = if hidden { r } else { r.on_hover_text(tr("Hide Console")) };
+    if r.clicked() {
+        app.ui.export.console_hidden = !hidden;
+    }
+    if !hidden {
+        ui.vertical(|ui| {
+            ui.set_width(CONSOLE_WIDTH);
+            ui.label(caption(&tr("Console").to_uppercase()).strong());
+            ui.separator();
+            egui::ScrollArea::vertical().id_salt("exp_console").auto_shrink([false; 2]).stick_to_bottom(true).show(ui, |ui| {
+                for line in &app.ui.export.console {
+                    match line {
+                        ConsoleLine::Step(t) => {
+                            ui.label(t);
+                        }
+                        ConsoleLine::Done(t) => {
+                            ui.label(RichText::new(t).color(success(&tk)));
+                        }
+                        ConsoleLine::Set(name) => {
+                            ui.label(set_line(ui, name, &tk));
+                        }
+                    }
                 }
             });
-        }
-        Err(e) => {
-            ui.label(RichText::new(e).color(tk.danger));
-        }
+        });
+    }
+}
+
+/// "Exporting texture set <name>..." with the name in bold
+fn set_line(ui: &Ui, name: &str, tk: &Tokens) -> egui::text::LayoutJob {
+    let text = tr("Exporting texture set {set}...");
+    let (before, after) = text.split_once("{set}").unwrap_or((text, ""));
+    let font = egui::TextStyle::Body.resolve(ui.style());
+    let plain = egui::TextFormat::simple(font.clone(), tk.text);
+    let mut job = egui::text::LayoutJob::default();
+    job.append(before, 0.0, plain.clone());
+    job.append(name, 0.0, egui::TextFormat::simple(font, tk.text_strong));
+    job.append(after, 0.0, plain);
+    job
+}
+
+/// One expandable node per ticked texture set, a row per file
+fn export_tree(app: &mut TextureCraftApp, ui: &mut Ui, tk: &Tokens) {
+    for ts in export_selection(app) {
+        let params = set_params(app, ts);
+        let Some(set) = app.session.doc.project.texture_sets.get(ts) else { continue };
+        let (name, own) = (set.name.clone(), set.resolution);
+        let size = params.get("size").and_then(serde_json::Value::as_u64).map_or(own, |s| s as u32);
+        let plan = texturecraft_engine::execute(&mut app.session, "export.plan", &params);
+        egui::CollapsingHeader::new(&name).id_salt(("exp_tree", ts)).default_open(true).show(ui, |ui| match plan {
+            Ok(files) => {
+                egui::Grid::new(("exp_tree_grid", ts)).num_columns(4).spacing(vec2(12.0, 4.0)).show(ui, |ui| {
+                    for f in files.as_array().into_iter().flatten() {
+                        let file = f.get("file").and_then(serde_json::Value::as_str).unwrap_or_default();
+                        let format = FileFormat::from_extension(f.get("format").and_then(serde_json::Value::as_str).unwrap_or_default());
+                        let depth = f.get("bitDepth").and_then(serde_json::Value::as_u64).unwrap_or(8) as u8;
+                        let dithering = f.get("dithering").and_then(serde_json::Value::as_bool).unwrap_or(false);
+                        let path = std::path::Path::new(&app.ui.export.dir).join(file).display().to_string();
+                        ui.label(file).on_hover_text(&path);
+                        ui.label(set_size_label(size, own)).on_hover_text(&path);
+                        ui.label(format.map_or("", FileFormat::name)).on_hover_text(&path);
+                        ui.label(depth_label(format, depth, dithering)).on_hover_text(&path);
+                        ui.end_row();
+                    }
+                });
+            }
+            Err(e) => {
+                ui.label(RichText::new(e.to_string()).color(tk.danger));
+            }
+        });
+    }
+}
+
+/// Show the output folder in the system's file manager (created first when missing)
+#[cfg(not(target_arch = "wasm32"))]
+fn open_output_directory(app: &mut TextureCraftApp) {
+    let dir = std::path::PathBuf::from(&app.ui.export.dir);
+    if let Err(e) = std::fs::create_dir_all(&dir).and_then(|()| app.file_dialogs.show_folder(&dir)) {
+        app.toast(trf("Could not open {folder}: {error}", &[("folder", &dir.display()), ("error", &e)]), true);
     }
 }
 
@@ -805,8 +938,9 @@ fn cancel(app: &mut TextureCraftApp) {
 
 pub fn show(app: &mut TextureCraftApp, ctx: &egui::Context) {
     if !app.ui.windows.export {
-        // The window opens on SETTINGS again
+        // The window opens on SETTINGS again; an export stops with it
         let e = &mut app.ui.export;
+        e.job = None;
         e.ask = None;
         e.opened_with = None;
         e.tab = 0;
@@ -844,9 +978,17 @@ pub fn show(app: &mut TextureCraftApp, ctx: &egui::Context) {
                 }
             }
 
-            // Tick every texture set again
+            // LIST OF EXPORTS opens the output folder instead; the other tabs tick every texture set again
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(tr("Include all")).on_hover_text(tr("Includes all Texture Sets, UV Tiles and output maps.")).clicked() {
+                if app.ui.export.tab == 2 {
+                    // The browser downloads the files instead
+                    #[cfg(target_arch = "wasm32")]
+                    crate::unavailable::greyed(ui, |ui| ui.button(tr("Open output directory")));
+                    #[cfg(not(target_arch = "wasm32"))]
+                    if ui.button(tr("Open output directory")).clicked() {
+                        open_output_directory(app);
+                    }
+                } else if ui.button(tr("Include all")).on_hover_text(tr("Includes all Texture Sets, UV Tiles and output maps.")).clicked() {
                     app.ui.export.skip.clear();
                     for o in app.ui.export.sets.values_mut() {
                         o.maps.values_mut().for_each(|m| m.enabled = true);
@@ -858,9 +1000,16 @@ pub fn show(app: &mut TextureCraftApp, ctx: &egui::Context) {
         ui.separator();
         ui.allocate_ui_with_layout(vec2(ui.available_width(), BODY_HEIGHT), egui::Layout::left_to_right(egui::Align::Min), |ui| {
             ui.set_height(BODY_HEIGHT);
-            if app.ui.export.tab == 1 {
-                crate::export_templates::tab(app, ui, &presets);
-                return;
+            match app.ui.export.tab {
+                1 => {
+                    crate::export_templates::tab(app, ui, &presets);
+                    return;
+                }
+                2 => {
+                    list_tab(app, ui);
+                    return;
+                }
+                _ => {}
             }
 
             ui.vertical(|ui| {
@@ -868,17 +1017,34 @@ pub fn show(app: &mut TextureCraftApp, ctx: &egui::Context) {
                 set_list(app, ui);
             });
             ui.separator();
-            ui.vertical(|ui| match (app.ui.export.tab, app.ui.export.page) {
-                (0, Some(ts)) if ts < app.session.set_count() => set_page(app, ui, ts, &presets),
-                (0, _) => global_page(app, ui, &presets),
-                _ => list_tab(app, ui),
+            ui.vertical(|ui| match app.ui.export.page {
+                Some(ts) if ts < app.session.set_count() => set_page(app, ui, ts, &presets),
+                _ => global_page(app, ui, &presets),
             });
         });
         ui.add_space(8.0);
         ui.separator();
+        // While exporting: the progress and Cancel Export
+        if let Some(job) = &app.ui.export.job {
+            let done = job.total - job.pending.len();
+            let progress = if job.total == 0 { 1.0 } else { done as f32 / job.total as f32 };
+            ui.horizontal(|ui| {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button(tr("Cancel Export")).clicked() {
+                        app.ui.export.job = None;
+                    }
+                    let percent = format!("{:.0}%", progress * 100.0);
+                    ui.add(egui::ProgressBar::new(progress).text(percent));
+                });
+            });
+            return;
+        }
         let selected = selected_texture_count(app);
         ui.horizontal(|ui| {
-            if ui.button(tr("Reset all")).on_hover_text(tr("Resets all settings to their default values, including all textures.")).clicked() {
+            // Not on LIST OF EXPORTS
+            if app.ui.export.tab != 2
+                && ui.button(tr("Reset all")).on_hover_text(tr("Resets all settings to their default values, including all textures.")).clicked()
+            {
                 let opened_with = app.ui.export.opened_with.take();
                 app.ui.export = ExportUi { opened_with, ..ExportUi::default() };
             }
@@ -899,8 +1065,18 @@ pub fn show(app: &mut TextureCraftApp, ctx: &egui::Context) {
         });
     });
     crate::export_templates::ask(app, ctx);
-    if do_export && export_sets(app) {
-        app.ui.windows.export = false;
+
+    // One texture set per frame, after the window showed the state before it
+    if app.ui.export.job.is_some() && !do_export {
+        export_step(app, ctx.cumulative_frame_nr());
+        ctx.request_repaint();
+    }
+    if do_export {
+        start_export(app);
+        if let Some(job) = app.ui.export.job.as_mut() {
+            job.frame = ctx.cumulative_frame_nr();
+        }
+        ctx.request_repaint();
     }
 
     // Closing the window is Cancel
