@@ -133,7 +133,7 @@ pub struct Prefs {
     /// Viewport texture resolution: 0 full, 1 half, 2 quarter of each texture set's size (lighter
     /// on GPU memory and uploads for 4K and 8K sets; painting and export keep full resolution).
     pub viewport_texture: u8,
-    /// Interface brightness (the views keep their studio slate).
+    /// Interface brightness (the views keep their own background).
     pub brightness: crate::theme::Brightness,
     /// The colour of what is on, chosen or focused.
     pub accent: crate::theme::Accent,
@@ -164,6 +164,9 @@ pub struct Prefs {
     pub gpu_raytracing: bool,
     /// Library locations the user added (Settings > Libraries), after the built-in ones.
     pub libraries: Vec<LibraryLocation>,
+    /// The plain background of the 3D and 2D views at Environment Opacity 0 (Settings > General >
+    /// Background color): the color at the top and at the bottom, linear RGB.
+    pub background: [[f32; 3]; 2],
 }
 
 /// A folder the user added as a library: its name and path.
@@ -201,6 +204,7 @@ impl Default for Prefs {
             wheel_inverse: false,
             gpu_raytracing: true,
             libraries: Vec::new(),
+            background: texturecraft_render::DEFAULT_BACKGROUND,
         }
     }
 }

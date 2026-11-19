@@ -51,6 +51,8 @@ struct Head {
 struct PostRaw {
     size: [u32; 4],
     display: [f32; 4],
+    back_top: [f32; 4],
+    back_bottom: [f32; 4],
 }
 
 struct Geometry {
@@ -637,7 +639,13 @@ impl GpuTracer {
         let disp = [display.exposure, flag(display.aces), display.env_opacity, flag(display.denoise)];
         let mut bytes = vec![0u8; self.post_stride as usize * STEPS.len()];
         for (i, step) in STEPS.iter().enumerate() {
-            let raw = PostRaw { size: [acc.width, acc.height, self.samples, *step], display: disp };
+            let [t, b] = display.background;
+            let raw = PostRaw {
+                size: [acc.width, acc.height, self.samples, *step],
+                display: disp,
+                back_top: [t[0], t[1], t[2], 0.0],
+                back_bottom: [b[0], b[1], b[2], 0.0],
+            };
             if let Some(slot) = bytes.get_mut(i * self.post_stride as usize..).and_then(|s| s.get_mut(..size_of::<PostRaw>())) {
                 slot.copy_from_slice(bytemuck::bytes_of(&raw));
             }
@@ -929,7 +937,7 @@ mod tests {
             let values: Vec<_> = WHITE.iter().chain(extra).copied().collect();
             let env = EnvImage { width: 8, height: 4, data: vec![[1.0; 3]; 32] };
             let scene = sphere_scene(&mut h, env, &values);
-            let d = TraceDisplay { exposure: 0.5, aces: false, env_opacity: 1.0, denoise: false };
+            let d = TraceDisplay { exposure: 0.5, aces: false, env_opacity: 1.0, denoise: false, background: crate::DEFAULT_BACKGROUND };
             let (w, _, px) = t.render(&h.device, &h.queue, &h.renderer, &scene, &camera(), &TraceSettings { bounces: 8 }, &d, [64, 48], 256).unwrap();
             assert!(accumulation(&h, &t).iter().all(|v| v.iter().all(|c| c.is_finite())), "{name}: no NaN or infinity");
             let at = |x: u32, y: u32| texturecraft_texel::srgb_to_linear(px[((y * w + x) * 4 + 1) as usize] as f32 / 255.0);
@@ -959,7 +967,7 @@ mod tests {
         for (name, values, lens) in [("every lobe", &values[..], None), ("glass under a thin lens", &glass[..], Some([3.2, 0.2]))] {
             let mut scene = sphere_scene(&mut h, crate::ibl::environment("Studio Contrast", 256), values);
             (scene.lens, scene.ior) = (lens, 1.45);
-            let d = TraceDisplay { exposure: 1.0, aces: true, env_opacity: 0.5, denoise: false };
+            let d = TraceDisplay { exposure: 1.0, aces: true, env_opacity: 0.5, denoise: false, background: crate::DEFAULT_BACKGROUND };
             let settings = TraceSettings { bounces: 6 };
             let (_, _, gpu) = t.render(&h.device, &h.queue, &h.renderer, &scene, &camera(), &settings, &d, [48, 36], 1024).unwrap();
             let mut cpu = Tracer::new(48, 36);
@@ -997,7 +1005,7 @@ mod tests {
         let bvh = Arc::new(Bvh::new(&mesh));
         let env = crate::ibl::environment("Studio Contrast", 256);
         let scene = TraceScene::new(mesh, bvh, vec![TraceSet { material: 0, composite, height_strength: 0.0 }], Arc::new(env), 0.0);
-        let d = TraceDisplay { exposure: 1.0, aces: true, env_opacity: 0.5, denoise: false };
+        let d = TraceDisplay { exposure: 1.0, aces: true, env_opacity: 0.5, denoise: false, background: crate::DEFAULT_BACKGROUND };
         let settings = TraceSettings { bounces: 4 };
         let (_, _, gpu) = t.render(&h.device, &h.queue, &h.renderer, &scene, &camera(), &settings, &d, [48, 36], 1024).unwrap();
         let mut cpu = Tracer::new(48, 36);
@@ -1041,7 +1049,8 @@ mod tests {
         let mut cam = OrbitCamera::default();
         cam.frame(lo, hi);
         let scene = TraceScene::new(mesh.clone(), Arc::new(Bvh::new(&mesh)), Vec::new(), Arc::new(crate::ibl::environment("Studio Soft", 1024)), 0.0);
-        let (settings, d) = (TraceSettings::default(), TraceDisplay { exposure: 1.0, aces: true, env_opacity: 0.0, denoise: true });
+        let (settings, d) =
+            (TraceSettings::default(), TraceDisplay { exposure: 1.0, aces: true, env_opacity: 0.0, denoise: true, background: crate::DEFAULT_BACKGROUND });
         let run = |t: &mut GpuTracer, n| t.render(&h.device, &h.queue, &h.renderer, &scene, &cam, &settings, &d, [1920, 1080], n).unwrap();
         run(&mut t, 8);
         let t0 = std::time::Instant::now();

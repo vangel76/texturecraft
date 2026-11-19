@@ -144,6 +144,29 @@ fn a_lit_channel_view_is_shaded_and_the_flat_one_is_not() {
     assert_eq!(flat_uv.px, lit_uv.px, "the 2D view is not shaded");
 }
 
+/// At Environment Opacity 0 the view shows the plain background of Settings > General: #242425 by
+/// default, a gradient when the top and the bottom color differ.
+#[test]
+fn the_plain_background_follows_the_chosen_colors() {
+    let Some((mut h, frame)) = setup() else { return };
+    let plain = render(&mut h, &frame, "background_default");
+    for (x, y) in [(5, 5), (474, 5), (5, 354), (474, 354)] {
+        let [r, g, b] = plain.at(x, y);
+        assert!(
+            r.abs_diff(0x24) <= 1 && g.abs_diff(0x24) <= 1 && b.abs_diff(0x25) <= 1,
+            "the default background is #242425, got {r:02x}{g:02x}{b:02x} at ({x}, {y})"
+        );
+    }
+
+    let gradient = render(&mut h, &shaded(&frame, |s| s.background = [[0.5, 0.0, 0.0], [0.0, 0.0, 0.5]]), "background_gradient");
+    let (top, bottom) = (gradient.at(5, 5), gradient.at(5, 354));
+    assert!(top[0] > 100 && top[2] < 40, "the top shows the top color: {top:?}");
+    assert!(bottom[2] > 100 && bottom[0] < 40, "the bottom shows the bottom color: {bottom:?}");
+
+    let environment = render(&mut h, &shaded(&frame, |s| s.env_opacity = 1.0), "background_environment");
+    assert_ne!(environment.at(5, 5), plain.at(5, 5), "the environment replaces the plain color at Opacity 100");
+}
+
 #[test]
 fn the_combined_normal_view_shows_the_shading_normal_unlit() {
     let Some((mut h, frame)) = setup() else { return };

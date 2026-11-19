@@ -15,6 +15,7 @@ mod color_selection_editor;
 mod curvature_generator;
 mod decal_proportions;
 mod decal_symmetry;
+mod display_environment;
 mod display_post_effects;
 mod effect_decal;
 mod effect_rows;

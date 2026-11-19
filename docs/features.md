@@ -193,6 +193,9 @@ Everything TextureCraft does today, by area. What's still missing is in [`ROADMA
   bound in Settings), and the **Normal+height+mesh** view in the view picker. Orbit, pan and zoom buttons in the corner of each view do the same with a
   plain drag, so a pen and tablet can navigate without a keyboard or wheel (Viewport menu ▸
   Navigation buttons hides them).
+- **Display Settings** pick the environment from a thumbnail grid (or drop an image on the slot),
+  with opacity and blur in percent; Settings > General > Background color sets the plain
+  background (top and bottom color) that shows at environment opacity 0.
 - **Perspective (F5) or orthographic (F6)** projection, and **front, back, left, right, top and
   bottom views** that frame the mesh (Viewport menu; bind your own keys in Settings).
 - **3D and UV wireframes** that show the mesh's own polygons: quads and n-gons from OBJ, FBX,

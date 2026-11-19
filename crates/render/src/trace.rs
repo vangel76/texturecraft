@@ -255,12 +255,20 @@ pub struct TraceDisplay {
     pub env_opacity: f32,
     /// Filter the remaining noise (edge-aware; keeps texture detail).
     pub denoise: bool,
+    /// The plain background behind the mesh at the top and at the bottom of the view (linear RGB).
+    pub background: [[f32; 3]; 2],
 }
 
 impl TraceDisplay {
     /// Exposure, tone mapping and background as the viewport shows them.
     pub fn from_display(d: &DisplaySettings) -> TraceDisplay {
-        TraceDisplay { exposure: d.env_exposure.exp2(), aces: d.tone_mapping == ToneMapping::AcesFilmic, env_opacity: d.env_opacity, denoise: false }
+        TraceDisplay {
+            exposure: d.env_exposure.exp2(),
+            aces: d.tone_mapping == ToneMapping::AcesFilmic,
+            env_opacity: d.env_opacity,
+            denoise: false,
+            background: crate::DEFAULT_BACKGROUND,
+        }
     }
 }
 
@@ -368,7 +376,7 @@ impl Tracer {
             let uv = Vec2::new(((i as u32 % self.width) as f32 + 0.5) / w, ((i as u32 / self.width) as f32 + 0.5) / h);
             let a = px.hits / n;
             let misses = n - px.hits;
-            let back = if misses > 0.0 { backdrop(uv).lerp(tonemap(px.env / misses, d), d.env_opacity.clamp(0.0, 1.0)) } else { backdrop(uv) };
+            let back = if misses > 0.0 { backdrop(uv, d).lerp(tonemap(px.env / misses, d), d.env_opacity.clamp(0.0, 1.0)) } else { backdrop(uv, d) };
             let mean = denoised.get(i).copied().unwrap_or(px.hit / px.hits.max(1.0));
             let scene = if px.hits > 0.0 { tonemap(mean, d) } else { Vec3::ZERO };
             let c = back.lerp(scene, a);
@@ -455,10 +463,9 @@ impl Tracer {
     }
 }
 
-/// The viewport's studio backdrop: a cool slate, lighter at the top (matches the post pass).
-fn backdrop(uv: Vec2) -> Vec3 {
-    let d = uv * 2.0 - Vec2::ONE;
-    Vec3::new(0.0295, 0.0343, 0.0437).lerp(Vec3::new(0.0110, 0.0130, 0.0168), uv.y) * (1.0 - 0.09 * d.length_squared())
+/// The viewport's plain background, top to bottom (matches the post pass).
+fn backdrop(uv: Vec2, d: &TraceDisplay) -> Vec3 {
+    Vec3::from(d.background[0]).lerp(Vec3::from(d.background[1]), uv.y)
 }
 
 fn tonemap(hdr: Vec3, d: &TraceDisplay) -> Vec3 {
@@ -1083,7 +1090,7 @@ mod tests {
             tr.pass(&s, &camera(), &TraceSettings::default());
         }
         assert_eq!(tr.samples, 8);
-        let d = TraceDisplay { exposure: 1.0, aces: true, env_opacity: 0.0, denoise: false };
+        let d = TraceDisplay { exposure: 1.0, aces: true, env_opacity: 0.0, denoise: false, background: crate::DEFAULT_BACKGROUND };
         let img = tr.rgba8(&d);
         assert_eq!(img.len(), 48 * 32 * 4);
         let px = |x: usize, y: usize| &img[(y * 48 + x) * 4..(y * 48 + x) * 4 + 3];
@@ -1099,7 +1106,9 @@ mod tests {
         let s = scene("Overcast");
         let mut tr = Tracer::new(16, 8);
         tr.pass(&s, &camera(), &TraceSettings::default());
-        let corner = |opacity: f32| tr.rgba8(&TraceDisplay { exposure: 1.0, aces: true, env_opacity: opacity, denoise: false })[0];
+        let corner = |opacity: f32| {
+            tr.rgba8(&TraceDisplay { exposure: 1.0, aces: true, env_opacity: opacity, denoise: false, background: crate::DEFAULT_BACKGROUND })[0]
+        };
         assert!(corner(1.0) > corner(0.0) + 40);
     }
 
@@ -1125,7 +1134,7 @@ mod tests {
     fn passes_split_into_row_slices_match_whole_passes() {
         let s = scene("Studio Soft");
         let (mut whole, mut sliced) = (Tracer::new(40, 30), Tracer::new(40, 30));
-        let d = TraceDisplay { exposure: 1.0, aces: true, env_opacity: 0.0, denoise: false };
+        let d = TraceDisplay { exposure: 1.0, aces: true, env_opacity: 0.0, denoise: false, background: crate::DEFAULT_BACKGROUND };
         for _ in 0..2 {
             whole.pass(&s, &camera(), &TraceSettings::default());
             let mut done = false;
@@ -1144,8 +1153,8 @@ mod tests {
         for _ in 0..4 {
             tr.pass(&s, &camera(), &TraceSettings::default());
         }
-        let raw = tr.rgba8(&TraceDisplay { exposure: 1.0, aces: true, env_opacity: 0.0, denoise: false });
-        let clean = tr.rgba8(&TraceDisplay { exposure: 1.0, aces: true, env_opacity: 0.0, denoise: true });
+        let raw = tr.rgba8(&TraceDisplay { exposure: 1.0, aces: true, env_opacity: 0.0, denoise: false, background: crate::DEFAULT_BACKGROUND });
+        let clean = tr.rgba8(&TraceDisplay { exposure: 1.0, aces: true, env_opacity: 0.0, denoise: true, background: crate::DEFAULT_BACKGROUND });
         // Neighbour differences inside the ball (rows 18..30, columns 26..38) drop; the mean stays.
         let stats = |img: &[u8]| {
             let px = |x: usize, y: usize| img[(y * 64 + x) * 4] as f32;

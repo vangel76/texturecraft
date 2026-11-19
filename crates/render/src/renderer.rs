@@ -51,6 +51,10 @@ pub const HDR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
 pub const ENV_LEVELS: u32 = 6;
 const SHADOW_SIZE: u32 = 2048;
 
+/// The plain background behind the scene at Environment Opacity 0: the top and the bottom color (linear RGB). The default is
+/// #242425 at both ends; Settings > General > Background color sets them.
+pub const DEFAULT_BACKGROUND: [[f32; 3]; 2] = [[0.01762, 0.01762, 0.01851]; 2];
+
 /// The last channel index (base color, metallic, roughness, normal, height) a lit single-channel view can show; the others stay flat
 const SOLO_LIT_LAST_CHANNEL: u32 = 4;
 
@@ -109,6 +113,8 @@ struct PostRaw {
     c: [f32; 4],
     d: [f32; 4],
     e: [f32; 4],
+    back_top: [f32; 4],
+    back_bottom: [f32; 4],
 }
 
 #[repr(C)]
@@ -150,6 +156,8 @@ pub struct Shade {
     /// on a lit neutral material instead of flat (Display settings > "Display solo view without
     /// lighting (unlit)" off); 3D view only.
     pub solo_lit: bool,
+    /// The background color at the top and at the bottom of the view (linear RGB), see [`DEFAULT_BACKGROUND`].
+    pub background: [[f32; 3]; 2],
     /// Direction to an optional key light and its intensity (0 = off). The direction is in
     /// environment space: it turns with `env_rotation_deg` like the lights painted into the
     /// environment, so rotating the environment sweeps the key light and its shadows too.
@@ -267,6 +275,7 @@ impl Default for Shade {
             view_mode: 0,
             channel: 0,
             solo_lit: false,
+            background: DEFAULT_BACKGROUND,
             light: [0.0; 4],
             wireframe: false,
             shadows: false,
@@ -2082,6 +2091,8 @@ impl Renderer {
             c: dof_c,
             d: sss_d,
             e: [flag(cam.ortho), sample as f32, 0.0, 0.0],
+            back_top: [s.background[0][0], s.background[0][1], s.background[0][2], 0.0],
+            back_bottom: [s.background[1][0], s.background[1][1], s.background[1][2], 0.0],
         };
         let Some(v) = self.targets(device, frame.view_id, frame.size, bloom, fx_on, refraction) else { return };
         queue.write_buffer(&v.globals, 0, bytemuck::bytes_of(&raw));

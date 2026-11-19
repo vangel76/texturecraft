@@ -73,12 +73,21 @@ that closes it back onto the bar; the float is saved with the UI state.
   greyed; TextureCraft exports the mesh as it is.
 - **Log:** *General* and *Assets* tabs. Messages are sorted by how they begin (see
   `log_panel::ASSET_PREFIXES`); the status bar still shows the latest message of either.
-- **Display Settings:** *View mode* above the section tabs; Environment settings (Environment Map,
-  Opacity, Exposure (EV), Blur, Rotation; *Override environment map color space* with *Auto*,
-  *Environment Alignment* *World*), Shadows (*Shadows*; *Computation mode* *Lightweight* and
-  *Shadows opacity* 90 greyed) and Camera settings (*Preset* and *Restore* work on the saved
-  cameras). Post effects and Viewer settings keep TextureCraft's own controls. The reference's
-  fifth tab is not shown in the screenshot and is left out. Colour management stays greyed.
+- **Display Settings:** *View mode* above the five section tabs (Environment settings, Camera
+  settings, Post effects, Render settings, Visualization settings); Environment settings
+  (*Environment Map* is a drop slot that shows the name, with the name as its tooltip: a click
+  opens a thumbnail grid with the search *environment* and *reset query to default*, and an image
+  dragged from the Assets panel is accepted; Opacity 0-100, Exposure (EV) -10 to 10, Blur 0-100
+  (default 35), Rotation; *Override environment map color space* with *Auto*, *Environment
+  Alignment* *World*), Shadows (*Shadows*; *Computation mode* *Lightweight* and *Shadows opacity*
+  100 greyed) and Camera settings (*Preset* and *Restore* work on the saved cameras). The whole
+  Environment section is greyed while a mesh map shows. Opacity and Blur are stored as fractions
+  (the commands keep 0 to 1). Post effects, Render settings (temporal anti-aliasing) and
+  Visualization settings (wireframes, the unlit switch) keep TextureCraft's own controls; the
+  reference's other rows of those tabs are not copied. Colour management stays greyed.
+- **Settings > General > Background color:** two colour buttons (top and bottom) with an
+  eyedropper each, default #242425 at both ends; the plain background of the 3D and 2D views and
+  of Rendering mode behind the mesh at Environment Opacity 0 (a gradient when they differ).
 - **View mode combo** (viewport headers and Display Settings, one list): italic non-selectable
   titles *Lighting* (*Material*), *Single channel* (the channels, *Normal+height+mesh*) and
   *Mesh maps* (*Normal*, *World space normal*, *ID*, *Ambient occlusion*, *Curvature*,
@@ -86,7 +95,7 @@ that closes it back onto the bar; the float is saved with the UI state.
   (*Search...* pre-filled *u:image PRs*, *reset query to default*) that shows a project image. The
   channels read *Base metalness* and *Specular roughness* in this combo only. C and Shift+C visit
   *Normal+height+mesh* too. *Display solo view without lighting (unlit)* sits in Display Settings
-  (Viewer settings) and is on by default; off shades Base color, Metallic, Roughness, Normal and
+  (Visualization settings) and is on by default; off shades Base color, Metallic, Roughness, Normal and
   Height on a lit neutral material in the 3D view (the other channels stay flat). TextureCraft's
   *UV checker* stays, under *Lighting*. The default query lists every image; other words narrow
   the list by name.

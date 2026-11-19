@@ -277,12 +277,12 @@ fn scrolling_highlights_the_section_tab_and_a_tab_jumps_to_its_section() {
 
     assert!(tab(&harness, "Environment settings"), "the first section is highlighted at the top");
 
-    harness.get_by_role_and_label(Role::Button, "Viewer settings").click();
+    harness.get_by_role_and_label(Role::Button, "Visualization settings").click();
     harness.run_steps(SETTLE_FRAMES);
 
-    assert!(tab(&harness, "Viewer settings") && !tab(&harness, "Environment settings"), "the clicked tab is highlighted");
-    let heading = harness.get_by_label("VIEWER SETTINGS").rect();
-    assert!(harness.ctx.content_rect().contains_rect(heading), "the page scrolled to Viewer settings");
+    assert!(tab(&harness, "Visualization settings") && !tab(&harness, "Environment settings"), "the clicked tab is highlighted");
+    let heading = harness.get_by_label("VISUALIZATION SETTINGS").rect();
+    assert!(harness.ctx.content_rect().contains_rect(heading), "the page scrolled to Visualization settings");
 
     // Scroll back up a little: the Camera or Post effects heading is the one passed last
     let over_page = heading.center();
@@ -300,5 +300,5 @@ fn scrolling_highlights_the_section_tab_and_a_tab_jumps_to_its_section() {
     harness.run_steps(12);
 
     assert!(tab(&harness, "Environment settings"), "back at the top, Environment settings is highlighted again");
-    assert!(!tab(&harness, "Viewer settings"));
+    assert!(!tab(&harness, "Visualization settings"));
 }

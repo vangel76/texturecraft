@@ -313,7 +313,7 @@ fn settings(app: &TextureCraftApp) -> TraceSettings {
 }
 
 fn display(app: &TextureCraftApp) -> TraceDisplay {
-    TraceDisplay { denoise: app.ui.render.denoise, ..TraceDisplay::from_display(&app.session.doc.project.display) }
+    TraceDisplay { denoise: app.ui.render.denoise, background: app.ui.prefs.background, ..TraceDisplay::from_display(&app.session.doc.project.display) }
 }
 
 fn work(app: &TextureCraftApp, size: (u32, u32)) -> Work {

@@ -345,6 +345,7 @@ fn shade(app: &TextureCraftApp) -> Shade {
         channel,
         wireframe: app.ui.uv_wireframe || polygon_fill_tool,
         wireframe_3d: app.ui.wireframe_3d || polygon_fill_tool,
+        background: app.ui.prefs.background,
         ..Shade::from_project(&app.session.doc.project)
     }
 }
