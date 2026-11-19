@@ -421,6 +421,10 @@ pub fn shortcuts(app: &mut TextureCraftApp, ctx: &egui::Context) {
         if confirming_reset && !popup_open {
             crate::windows::reset_ui_keys(app, input, no_widget_focused);
         }
+        // F2 renames the selected template on Output templates, before its 3D view binding
+        if app.ui.windows.export && app.ui.export.tab == 1 && app.ui.export.ask.is_none() && input.consume_key(Modifiers::NONE, Key::F2) {
+            app.ui.export.rename_key = true;
+        }
         let commands = app.bindings.dispatch(input);
         for copy in copies {
             if !input.events.contains(&copy) {

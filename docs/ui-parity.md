@@ -186,7 +186,7 @@ Free rotation uses the same Alt+left drag (and right drag) as the constrained on
 
 ## Export textures window (batch 3, 2026-11-19)
 
-**UI + tests** (`crates/ui-egui/tests/it/export_settings.rs`, `export_overrides.rs`, `export_map_overrides.rs`, `export_file_types.rs`, `export_progress.rs`; code in
+**UI + tests** (`crates/ui-egui/tests/it/export_settings.rs`, `export_overrides.rs`, `export_map_overrides.rs`, `export_file_types.rs`, `export_progress.rs`, `output_templates.rs`; code in
 [`export_window.rs`](../crates/ui-egui/src/export_window.rs)).
 
 - **SETTINGS** ([#671](https://github.com/storytold/texturecraft/issues/671)): the texture set
@@ -240,3 +240,14 @@ Free rotation uses the same Alt+left drag (and right drag) as the constrained on
   the full path as tooltip) with *Open output directory* at the top right. The files are
   written when a texture set is done, so its "Writing ..." lines follow its work instead of
   coming one by one.
+- **OUTPUT TEMPLATES** ([#674](https://github.com/storytold/texturecraft/issues/674)): the left
+  list is titled *Presets* and lists the templates sorted by name, without the template list's
+  first group. A right click on a preset offers *Rename*, *Duplicate* and *Remove* (Rename and
+  Remove are greyed for built-in templates, which are read-only); F2 renames the selected one.
+  "+" creates "new_export_preset", Duplicate "<name>_copy". *Naming pattern* (*OpenPBR*; the
+  reference's second pattern names another vendor's material and is left out) with its info
+  tooltip sits above the input maps. The middle reads "Current preset: <name>", *Output maps*
+  with *Create:* Gray, RGB, R+G+B, RGB+A, R+G+B+A, and the footer "Drag and drop maps on output's
+  channels to setup your export." and "N output maps will be exported.". TextureCraft keeps its
+  own list tools (rename, import, export) and asks before deleting; R+G+B and R+G+B+A create the
+  same maps as RGB and RGB+A (each channel takes its own source in either).

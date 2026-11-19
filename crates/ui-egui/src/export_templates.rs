@@ -20,6 +20,8 @@ const ICON: f32 = 20.0;
 const LIST_WIDTH: f32 = 190.0;
 const INPUTS_WIDTH: f32 = 170.0;
 const RENAME_ID: &str = "exp_rename";
+/// The name "+" gives a new template, as in the reference
+const NEW_PRESET: &str = "new_export_preset";
 const RGB: [&str; 3] = ["R", "G", "B"];
 
 /// An output file's channel layout.
@@ -62,6 +64,15 @@ impl Layout {
         }
     }
 }
+
+/// The reference's Create buttons: (label, the layout the new output map gets). The split ones
+/// ("R+G+B", "R+G+B+A") make the same map; each channel can take its own source in either.
+const CREATE: [(&str, Layout); 5] =
+    [(n_("Gray"), Layout::Gray), ("RGB", Layout::Rgb), ("R+G+B", Layout::Rgb), ("RGB+A", Layout::Rgba), ("R+G+B+A", Layout::Rgba)];
+
+/// The naming patterns the input maps can be shown with (the reference's second one names
+/// another vendor's material and is left out)
+const NAMING_PATTERNS: [&str; 1] = ["OpenPBR"];
 
 /// The input maps palette: (group, [(label, source)]).
 type Palette = [(&'static str, Vec<(&'static str, SourceRef)>); 4];
@@ -193,11 +204,12 @@ enum MapAction {
 pub fn tab(app: &mut TextureCraftApp, ui: &mut Ui, builtins: &[ExportPreset]) {
     sync_draft(app);
     let height = ui.available_height();
+    let names = crate::export_window::template_groups(app, builtins).1;
     let mut list_action = None;
     ui.vertical(|ui| {
         ui.set_width(LIST_WIDTH);
         ui.set_height(height);
-        list_action = preset_list(app, ui, builtins);
+        list_action = preset_list(app, ui, &names);
     });
     ui.separator();
     ui.vertical(|ui| {
@@ -210,6 +222,7 @@ pub fn tab(app: &mut TextureCraftApp, ui: &mut Ui, builtins: &[ExportPreset]) {
     ui.vertical(|ui| {
         ui.set_width(INPUTS_WIDTH);
         ui.set_height(height);
+        naming_pattern(ui);
         input_maps(ui);
     });
     if let Some(a) = list_action {
@@ -227,24 +240,43 @@ pub fn select(app: &mut TextureCraftApp, name: String) {
     }
 }
 
-fn preset_list(app: &mut TextureCraftApp, ui: &mut Ui, builtins: &[ExportPreset]) -> Option<ListAction> {
+/// "Naming pattern" with its info icon
+fn naming_pattern(ui: &mut Ui) {
+    let tk = Tokens::get(ui.ctx());
+    ui.horizontal(|ui| {
+        ui.label(tr("Naming pattern"));
+        egui::ComboBox::from_id_salt("exp_naming").width(90.0).selected_text(NAMING_PATTERNS[0]).show_ui(ui, |ui| {
+            for p in NAMING_PATTERNS {
+                let _ = ui.selectable_label(true, p);
+            }
+        });
+        ui.label(RichText::new(ic::INFO).color(tk.text_dim)).on_hover_ui(|ui| {
+            ui.label(tr("Select the naming pattern used to display the input maps on this page."));
+            ui.label(tr("Some input maps (channels) may be named differently depending on the shader used as a Texture Set."));
+        });
+    });
+}
+
+/// The Presets list: the templates sorted by name (built-in and user); a right click offers
+/// Rename, Duplicate and Remove, F2 renames
+fn preset_list(app: &mut TextureCraftApp, ui: &mut Ui, names: &[String]) -> Option<ListAction> {
     let mut act = None;
     let sel = app.ui.export.preset.clone();
     let user = app.ui.export.draft.is_some();
-    ui.label(caption(tr("Output templates")));
+    ui.label(caption(tr("Presets")));
     ui.horizontal(|ui| {
         let tool = |ui: &mut Ui, enabled: bool, icon: &str, tip: &str| ui.add_enabled_ui(enabled, |ui| icon_button(ui, icon, tip, false, ICON)).inner.clicked();
         if tool(ui, true, ic::PLUS, tr("New template")) {
             act = Some(ListAction::New);
         }
         if tool(ui, true, ic::COPY, tr("Duplicate the selected template")) {
-            act = Some(ListAction::Duplicate);
+            act = Some(ListAction::Duplicate(sel.clone()));
         }
         if tool(ui, user, ic::PENCIL_SIMPLE, tr("Rename the selected template")) {
             act = Some(ListAction::StartRename(sel.clone()));
         }
         if tool(ui, user, ic::TRASH, tr("Delete the selected template")) {
-            act = Some(ListAction::Remove);
+            act = Some(ListAction::Remove(sel.clone()));
         }
         ui.separator();
         if tool(ui, true, ic::DOWNLOAD_SIMPLE, tr("Import a template (.json)")) {
@@ -255,33 +287,42 @@ fn preset_list(app: &mut TextureCraftApp, ui: &mut Ui, builtins: &[ExportPreset]
         }
     });
     ui.add_space(2.0);
-    let names: Vec<String> = app.session.export_presets.list.iter().map(|p| p.name.clone()).collect();
+    if std::mem::take(&mut app.ui.export.rename_key) && user {
+        act = Some(ListAction::StartRename(sel.clone()));
+    }
     egui::ScrollArea::vertical().id_salt("exp_presets").auto_shrink([false; 2]).show(ui, |ui| {
-        for p in builtins {
-            let r =
-                ui.selectable_label(p.name == sel, format!("{}  {}", ic::LOCK_SIMPLE, p.name)).on_hover_text(tr("Built-in (read-only): duplicate it to edit"));
-            if r.clicked() {
-                act = Some(ListAction::Select(p.name.clone()));
-            }
-        }
-        if !names.is_empty() {
-            ui.separator();
-        }
         for name in names {
-            match app.ui.export.renaming.as_mut().filter(|_| name == sel) {
+            let is_user = app.session.export_presets.list.iter().any(|p| p.name == *name);
+            match app.ui.export.renaming.as_mut().filter(|_| *name == sel) {
                 Some(buf) => {
                     let r = ui.add(egui::TextEdit::singleline(buf).id(egui::Id::unique(RENAME_ID)).desired_width(f32::INFINITY));
                     if r.lost_focus() {
-                        act = Some(if ui.input(|i| i.key_pressed(egui::Key::Escape)) { ListAction::Select(name) } else { ListAction::Rename(buf.clone()) });
+                        act = Some(if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                            ListAction::Select(name.clone())
+                        } else {
+                            ListAction::Rename(buf.clone())
+                        });
                     }
                 }
                 None => {
-                    let r = ui.selectable_label(name == sel, format!("{}  {name}", ic::USER)).on_hover_text(tr("Double-click to rename"));
-                    if r.double_clicked() {
-                        act = Some(ListAction::StartRename(name));
+                    let r = ui.selectable_label(*name == sel, name).on_hover_text(name);
+                    if r.double_clicked() && is_user {
+                        act = Some(ListAction::StartRename(name.clone()));
                     } else if r.clicked() {
-                        act = Some(ListAction::Select(name));
+                        act = Some(ListAction::Select(name.clone()));
                     }
+                    r.context_menu(|ui| {
+                        let read_only = tr("Built-in templates are read-only: duplicate one to edit it");
+                        if ui.add_enabled(is_user, egui::Button::new(tr("Rename"))).on_disabled_hover_text(read_only).clicked() {
+                            act = Some(ListAction::StartRename(name.clone()));
+                        }
+                        if ui.button(tr("Duplicate")).clicked() {
+                            act = Some(ListAction::Duplicate(name.clone()));
+                        }
+                        if ui.add_enabled(is_user, egui::Button::new(tr("Remove"))).on_disabled_hover_text(read_only).clicked() {
+                            act = Some(ListAction::Remove(name.clone()));
+                        }
+                    });
                 }
             }
         }
@@ -298,11 +339,11 @@ fn unfinished(app: &TextureCraftApp) -> Option<String> {
 fn apply(app: &mut TextureCraftApp, ctx: &egui::Context, act: ListAction) {
     let leaves = match &act {
         ListAction::Select(name) | ListAction::StartRename(name) => *name != app.ui.export.preset,
-        ListAction::New | ListAction::Duplicate | ListAction::Imported(_) => true,
+        ListAction::New | ListAction::Duplicate(_) | ListAction::Imported(_) => true,
         _ => false,
     };
-    if act == ListAction::Remove {
-        app.ui.export.ask = Some(Ask::Delete(app.ui.export.preset.clone()));
+    if let ListAction::Remove(name) = &act {
+        app.ui.export.ask = Some(Ask::Delete(name.clone()));
     } else if leaves && unfinished(app).is_some() {
         app.ui.export.ask = Some(Ask::Leave(act));
     } else {
@@ -315,11 +356,11 @@ fn perform(app: &mut TextureCraftApp, ctx: &egui::Context, act: ListAction) {
     match act {
         ListAction::Select(name) => app.ui.export.preset = name,
         ListAction::New => {
-            save_new(app, &ExportPreset { name: tr("New template").into(), maps: Vec::new() });
+            save_new(app, &ExportPreset { name: NEW_PRESET.into(), maps: Vec::new() });
         }
-        ListAction::Duplicate => {
-            if let Some(p) = selected(app) {
-                let name = trf("{name} copy", &[("name", &p.name)]).chars().take(MAX_PRESET_NAME).collect();
+        ListAction::Duplicate(name) => {
+            if let Some(p) = app.session.export_preset(&name) {
+                let name = format!("{}_copy", p.name).chars().take(MAX_PRESET_NAME).collect();
                 save_new(app, &ExportPreset { name, ..p });
             }
         }
@@ -329,7 +370,7 @@ fn perform(app: &mut TextureCraftApp, ctx: &egui::Context, act: ListAction) {
             ctx.memory_mut(|m| m.request_focus(egui::Id::unique(RENAME_ID)));
         }
         ListAction::Rename(name) => rename(app, name.trim()),
-        ListAction::Remove => remove(app, app.ui.export.preset.clone()),
+        ListAction::Remove(name) => remove(app, name),
         ListAction::Import => import_file(app, ctx),
         ListAction::Imported(p) => add_imported(app, &p),
         ListAction::Export => export_file(app),
@@ -537,16 +578,18 @@ fn outputs(app: &mut TextureCraftApp, ui: &mut Ui) {
     let preview = preview_names(app, &preset);
     let mut action = None;
     ui.horizontal(|ui| {
+        ui.label(RichText::new(tr("Current preset:")).color(tk.text_dim));
         ui.label(RichText::new(&preset.name).strong().color(tk.text_strong));
         if !editable {
             ui.label(RichText::new(ic::LOCK_SIMPLE).color(tk.text_dim)).on_hover_text(tr("Built-in templates are read-only: duplicate one to edit it"));
         }
     });
+    ui.label(caption(tr("Output maps")));
     ui.add_enabled_ui(editable, |ui| {
         ui.horizontal(|ui| {
-            ui.label(RichText::new(tr("Add output")).color(tk.text_dim));
-            for l in Layout::ALL {
-                if ui.small_button(format!("{} {}", ic::PLUS, tr(l.label()))).clicked() {
+            ui.label(RichText::new(tr("Create:")).color(tk.text_dim));
+            for (label, l) in CREATE {
+                if ui.small_button(tr(label)).clicked() {
                     action = Some(MapAction::Add(l));
                 }
             }
@@ -557,7 +600,9 @@ fn outputs(app: &mut TextureCraftApp, ui: &mut Ui) {
     }
     let mut changed = false;
     let n = preset.maps.len();
-    egui::ScrollArea::vertical().id_salt("exp_outputs").auto_shrink([false; 2]).show(ui, |ui| {
+    // Room for the footer below
+    let footer = 2.0 * ui.text_style_height(&egui::TextStyle::Body) + 3.0 * ui.spacing().item_spacing.y;
+    egui::ScrollArea::vertical().id_salt("exp_outputs").auto_shrink([false; 2]).max_height((ui.available_height() - footer).max(60.0)).show(ui, |ui| {
         if n == 0 {
             ui.add_space(8.0);
             ui.label(RichText::new(tr("No outputs yet: add one above, then drag input maps onto its channels.")).color(tk.text_dim));
@@ -570,6 +615,8 @@ fn outputs(app: &mut TextureCraftApp, ui: &mut Ui) {
             }
         });
     });
+    ui.label(RichText::new(tr("Drag and drop maps on output's channels to setup your export.")).color(tk.text_dim));
+    ui.label(trf("{n} output maps will be exported.", &[("n", &n)]));
     if !editable {
         return;
     }
