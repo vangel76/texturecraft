@@ -272,7 +272,7 @@ fn export_mesh(app: &mut TextureCraftApp, ctx: &egui::Context) {
     let mut open = true;
     let mut picked = None;
     dialog("export_mesh", tr("Export mesh"), &mut open).show(ctx, |ui| {
-        ui.label(caption(tr("Download as")));
+        ui.label(crate::theme::caption(tr("Download as")));
         for (extension, label, hint) in formats {
             if ui.add_sized(vec2(220.0, ui.spacing().interact_size.y), egui::Button::new(label)).on_hover_text(hint).clicked() {
                 picked = Some(extension);
