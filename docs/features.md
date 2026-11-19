@@ -165,7 +165,9 @@ Everything TextureCraft does today, by area. What's still missing is in [`ROADMA
   and share them as JSON.
 - **Export panel** on the right bar: *Export Mesh...* asks for the mesh export options, then for
   the file; *Export Textures...* opens the Export textures window (Settings, Output templates and
-  List of exports, *Include all*, *Save settings* and the number of textures the export writes).
+  List of exports, *Include all*, *Save settings* and the number of textures the export writes;
+  *Cancel* goes back to the settings the window opened with, *Maximum size for all Texture Sets*
+  exports every set at the largest set's size).
 - **Mesh export** to OBJ with an MTL material library and its maps (PBR extension keys for
   roughness, metallic, normal and coat; UV-tiled sets keep their UDIM UVs and export their maps
   through Export textures), textured GLB (with clear coat and sheen) and USD (with clear coat).

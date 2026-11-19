@@ -85,7 +85,7 @@ pub(crate) fn gltf_pbr_maps(file: impl Fn(&str) -> String) -> Vec<MapSpec> {
 pub fn builtin_presets() -> Vec<ExportPreset> {
     let preset = |name: &str, maps: Vec<MapSpec>| ExportPreset { name: name.into(), maps };
     vec![
-        preset("Document channels + Normal + AO", {
+        preset(DEFAULT_PRESET, {
             let mut maps: Vec<MapSpec> =
                 Channel::ALL.into_iter().filter(|c| !matches!(c, Channel::Normal | Channel::AmbientOcclusion)).map(channel_map).collect();
             maps.push(map("normal", 8, rgb(|k| ch(Channel::Normal, k))));
@@ -190,9 +190,18 @@ pub fn builtin_presets() -> Vec<ExportPreset> {
     ]
 }
 
+/// The default export template.
+pub const DEFAULT_PRESET: &str = "Document channels + Normal + AO (No Alpha)";
+
+/// The default template's name before it took the reference's "(No Alpha)" (saved settings and
+/// scripts still use it).
+const OLD_DEFAULT_PRESET: &str = "Document channels + Normal + AO";
+
 /// A built-in preset by name (case-insensitive).
 pub fn builtin_preset(name: &str) -> Option<ExportPreset> {
-    builtin_presets().into_iter().find(|p| p.name.eq_ignore_ascii_case(name.trim()))
+    let name = name.trim();
+    let name = if name.eq_ignore_ascii_case(OLD_DEFAULT_PRESET) { DEFAULT_PRESET } else { name };
+    builtin_presets().into_iter().find(|p| p.name.eq_ignore_ascii_case(name))
 }
 
 /// Parse and validate a user preset.

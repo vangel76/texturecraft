@@ -854,3 +854,15 @@ fn inverting_a_colour_channel_inverts_the_linear_value_before_encoding() {
     assert_eq!(half.width(), RES / 2);
     assert!(half.get_pixel(0, 5)[0] >= 250, "{}", half.get_pixel(0, 5)[0]);
 }
+
+#[test]
+fn the_default_template_keeps_its_old_name_and_file_types_their_listed_names() {
+    let old = builtin_preset("Document channels + Normal + AO").unwrap();
+    assert_eq!(old.name, crate::DEFAULT_PRESET, "settings saved under the old name still find the template");
+    assert_eq!(builtin_preset(crate::DEFAULT_PRESET).unwrap(), old);
+    for f in FileFormat::ALL {
+        assert_eq!(FileFormat::from_extension(f.name()), Some(f), "{} reads back", f.name());
+    }
+    assert_eq!(FileFormat::Tga.name(), "targa");
+    assert_eq!(FileFormat::Jpeg.name(), "jpeg");
+}

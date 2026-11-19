@@ -105,7 +105,7 @@ Built-in presets:
 
 | Preset | Files (`$mesh_$textureSet_…`) |
 |---|---|
-| Document channels + Normal + AO | one per document channel (`$channel`), plus `normal` and `ambientOcclusion` (mixed) |
+| Document channels + Normal + AO (No Alpha) | one per document channel (`$channel`), plus `normal` and `ambientOcclusion` (mixed) |
 | glTF PBR Metal Roughness | `BaseColor` (sRGB, A = opacity), `OcclusionRoughnessMetallic`, `Normal` (OpenGL), `Emissive` (if present) |
 | Unreal Engine (Packed) | `BaseColor`, `OcclusionRoughnessMetallic`, `Normal` (DirectX) |
 | Unity HDRP (Mask Map) | `BaseMap`, `MaskMap` (R metal, G AO, B detail = 0, A smoothness), `Normal` (OpenGL) |

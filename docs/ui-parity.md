@@ -183,3 +183,25 @@ constrained / free (trackball) rotation, the "Camera snap rotate" commands next 
 Alt+Shift+left drag (which already existed), bindable next / previous saved camera (the
 Ctrl+1 ... Ctrl+9 slots stay), and the "Normal+height+mesh" entry of the view picker.
 Free rotation uses the same Alt+left drag (and right drag) as the constrained one.
+
+## Export textures window (batch 3, 2026-11-19)
+
+**UI + tests** (`crates/ui-egui/tests/it/export_settings.rs`; code in
+[`export_window.rs`](../crates/ui-egui/src/export_window.rs)).
+
+- **SETTINGS** ([#671](https://github.com/storytold/texturecraft/issues/671)): the texture set
+  list has the reference's menu (*Check all*, *Uncheck all*, *Invert all*); *General Export
+  Parameters* has its reset button ("Resets all settings to default values"). *Output directory*
+  is a button showing the path (it opens the folder picker) with an *R* button ("Reset to
+  default"). The template list starts with the reference's first group (TextureCraft has
+  "Document channels + Normal + AO (No Alpha)", the new name of its default template, and "glTF
+  PBR Metal Roughness"; the others are greyed with "Not available yet"; one entry names another
+  vendor's product and is left out), then a separator ("This preset is not available for the
+  current project") and every other template sorted by name. File type lists "Based on output
+  template", then the types in the reference order and names ("targa", "jpeg", "tiff"). Size
+  adds "Maximum size for all Texture Sets" and 128. Padding uses the reference order; the
+  dilation width is a button with a "Dilation (pixels)" slider, greyed for paddings without a
+  width. Include all, Reset all, Cancel, Save settings, Export and the two greyed checkboxes carry
+  the reference tooltips (the padding tooltip names another vendor's product and is left out).
+  Cancel, and closing the window, go back to the settings the window opened with; the window
+  always opens on SETTINGS.

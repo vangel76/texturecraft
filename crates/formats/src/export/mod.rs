@@ -94,11 +94,22 @@ impl FileFormat {
         }
     }
 
+    /// The name the export window lists (`from_extension` reads it back).
+    pub fn name(self) -> &'static str {
+        match self {
+            FileFormat::Jpeg => "jpeg",
+            FileFormat::Tga => "targa",
+            FileFormat::Tiff => "tiff",
+            other => other.extension(),
+        }
+    }
+
     pub fn from_extension(ext: &str) -> Option<FileFormat> {
         let ext = ext.trim_start_matches('.').to_ascii_lowercase();
         match ext.as_str() {
             "jpeg" => Some(FileFormat::Jpeg),
             "tiff" => Some(FileFormat::Tiff),
+            "targa" => Some(FileFormat::Tga),
             _ => FileFormat::ALL.into_iter().find(|f| f.extension() == ext),
         }
     }

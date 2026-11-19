@@ -315,6 +315,9 @@ impl Default for NewProject {
     }
 }
 
+/// `ExportUi::size` for "Maximum size for all Texture Sets".
+pub const SIZE_OF_LARGEST_SET: u32 = u32::MAX;
+
 /// The export dialog's settings (remembered between sessions).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ExportUi {
@@ -327,7 +330,7 @@ pub struct ExportUi {
     /// none | dilation | dilationDefault | infinite
     pub padding: String,
     pub dilation: u32,
-    /// Output size override (0 = each texture set's size).
+    /// Output size override (0 = each texture set's size, [`SIZE_OF_LARGEST_SET`] = the largest set's).
     pub size: u32,
     /// "" (project), openGl or directX.
     pub normal_format: String,
@@ -346,13 +349,16 @@ pub struct ExportUi {
     /// Output templates tab: the question waiting for an answer (delete, or drop an unsaved edit).
     #[serde(skip)]
     pub ask: Option<crate::export_templates::Ask>,
+    /// The settings when the window opened: Cancel goes back to them.
+    #[serde(skip)]
+    pub opened_with: Option<Box<ExportUi>>,
 }
 
 impl Default for ExportUi {
     fn default() -> Self {
         ExportUi {
             dir: default_export_dir(),
-            preset: "Document channels + Normal + AO".into(),
+            preset: texturecraft_engine::formats::DEFAULT_PRESET.into(),
             format: String::new(),
             bit_depth: 0,
             padding: "infinite".into(),
@@ -365,6 +371,7 @@ impl Default for ExportUi {
             draft: None,
             renaming: None,
             ask: None,
+            opened_with: None,
         }
     }
 }

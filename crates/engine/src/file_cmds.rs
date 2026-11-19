@@ -288,7 +288,7 @@ fn check_materials(p: &texturecraft_core::Project, mesh: &Mesh) -> Result<()> {
 /// preset object (validated).
 pub fn export_options(s: &Session, p: &Value, cmd: &str) -> Result<ExportOptions> {
     let preset = match p.get("preset") {
-        None | Some(Value::Null) => s.export_preset("Document channels + Normal + AO"),
+        None | Some(Value::Null) => s.export_preset(texturecraft_formats::DEFAULT_PRESET),
         Some(Value::String(name)) => s.export_preset(name),
         Some(v @ Value::Object(_)) => Some(crate::preset_cmds::preset_param(v, cmd)?),
         Some(_) => return Err(bad(cmd, "`preset` must be a preset name or a preset object")),
