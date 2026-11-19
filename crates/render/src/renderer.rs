@@ -25,7 +25,7 @@ use std::collections::HashMap;
 
 use bytemuck::{Pod, Zeroable};
 use texturecraft_compose::{DisplayKind, ImageRes};
-use texturecraft_core::{Channel, DisplaySettings, Project, ToneMapping};
+use texturecraft_core::{Channel, DisplaySettings, EnvAlignment, Project, ToneMapping};
 use texturecraft_geom::glam::{Mat4, Vec3};
 use texturecraft_geom::{Mesh, OrbitCamera};
 use texturecraft_texel::TILE;
@@ -54,6 +54,12 @@ const SHADOW_SIZE: u32 = 2048;
 /// The plain background behind the scene at Environment Opacity 0: the top and the bottom color (linear RGB). The default is
 /// #242425 at both ends; Settings > General > Background color sets them.
 pub const DEFAULT_BACKGROUND: [[f32; 3]; 2] = [[0.01762, 0.01762, 0.01851]; 2];
+
+/// The camera's turn about the vertical axis, in radians (the direction it looks from, whether it is constrained or free)
+pub(crate) fn camera_yaw(camera: &OrbitCamera) -> f32 {
+    let from_target = camera.eye() - camera.target;
+    from_target.x.atan2(from_target.z)
+}
 
 /// The last channel index (base color, metallic, roughness, normal, height) a lit single-channel view can show; the others stay flat
 const SOLO_LIT_LAST_CHANNEL: u32 = 4;
@@ -167,6 +173,12 @@ pub struct Shade {
     /// Key-light shadow map (needs `light[3] > 0`; 3D material view only). Shadows dim the key
     /// light, not the image-based lighting.
     pub shadows: bool,
+    /// Edge of the shadow map in texels (the shadows' computation mode).
+    pub shadow_size: u32,
+    /// How dark the shadows are: 0 leaves the key light unshadowed, 1 blocks it fully.
+    pub shadow_opacity: f32,
+    /// The environment turns with the camera about the vertical axis (Environment Alignment: Camera), on top of `env_rotation_deg`.
+    pub env_camera: bool,
     /// Master switch of the effects below ("Post effects"); off costs no extra pass.
     /// Effects never apply to data views (channels, mesh maps, UV checker, 2D view).
     pub post_effects: bool,
@@ -230,6 +242,9 @@ impl Shade {
             // The key light (on with shadows), in environment space.
             light: if d.shadows { [0.5, 0.8, 0.4, 2.5] } else { [0.0; 4] },
             shadows: d.shadows,
+            shadow_size: d.shadow_mode.map_size(),
+            shadow_opacity: d.shadow_opacity,
+            env_camera: d.env_alignment == EnvAlignment::Camera,
             post_effects: d.post_effects,
             bloom: d.bloom,
             vignette: d.vignette,
@@ -279,6 +294,9 @@ impl Default for Shade {
             light: [0.0; 4],
             wireframe: false,
             shadows: false,
+            shadow_size: SHADOW_SIZE,
+            shadow_opacity: 1.0,
+            env_camera: false,
             post_effects: false,
             bloom: 0.0,
             vignette: 0.0,
@@ -1926,12 +1944,13 @@ impl Renderer {
         light: Vec3,
         disp: [f32; 4],
         visible: &[bool],
+        size: u32,
     ) -> Option<Mat4> {
         let l = light.try_normalize()?;
         let (id, center, radius) = self.mesh.as_ref().map(|m| (m.id, m.center, m.radius))?;
-        if self.shadow.size != SHADOW_SIZE {
-            self.shadow.view = shadow_view(device, SHADOW_SIZE);
-            self.shadow.size = SHADOW_SIZE;
+        if self.shadow.size != size {
+            self.shadow.view = shadow_view(device, size);
+            self.shadow.size = size;
             self.shadow.key = None;
             for v in self.views.values_mut() {
                 v.globals_bg = None;
@@ -2022,8 +2041,9 @@ impl Renderer {
         let fx = |v: f32| if s.post_effects && !data { v.clamp(0.0, 1.0) } else { 0.0 };
         let bloom = fx(s.bloom) > 0.0;
 
-        // Turn the key light with the environment
-        let (sin, cos) = s.env_rotation_deg.to_radians().sin_cos();
+        // Turn the key light with the environment, which follows the camera's turn about the vertical axis when aligned to it
+        let env_radians = s.env_rotation_deg.to_radians() + if s.env_camera { camera_yaw(&frame.camera) } else { 0.0 };
+        let (sin, cos) = env_radians.sin_cos();
         let [lx, ly, lz, lw] = s.light;
         let light = Vec3::new(cos * lx + sin * lz, ly, cos * lz - sin * lx);
         let displace = s.displacement && frame.kind == ViewKind::Scene;
@@ -2036,7 +2056,8 @@ impl Renderer {
             None => [0.0; 4],
         };
         let shadow_disp = [disp[0], disp[1] * s.height_strength, disp[2], 0.0];
-        let shadow_vp = if !data && s.shadows && lw > 0.0 { self.update_shadow(device, queue, encoder, light, shadow_disp, &frame.visible) } else { None };
+        let shadow_vp =
+            if !data && s.shadows && lw > 0.0 { self.update_shadow(device, queue, encoder, light, shadow_disp, &frame.visible, s.shadow_size) } else { None };
         let radius = self.mesh.as_ref().map_or(1.0, |m| m.radius);
 
         // Perspective background rays prevent flat color in orthographic views
@@ -2066,7 +2087,7 @@ impl Renderer {
             view_proj: vp.to_cols_array_2d(),
             inv_view_proj: bg_vp.inverse().to_cols_array_2d(),
             eye: [e.x, e.y, e.z, 0.0],
-            env: [s.env_rotation_deg.to_radians(), (ENV_LEVELS - 1) as f32, s.ao_intensity, if solo_lit { 1.0 } else { 0.0 }],
+            env: [env_radians, (ENV_LEVELS - 1) as f32, s.ao_intensity, if solo_lit { 1.0 } else { 0.0 }],
             sh: self.sh,
             mode: [s.view_mode as f32, s.channel as f32, s.height_strength, s.normal_y],
             bg: [s.env_opacity, s.env_blur * (ENV_LEVELS - 1) as f32, uv_view, 0.0],
@@ -2074,7 +2095,12 @@ impl Renderer {
             light: [light.x, light.y, light.z, lw],
             light_vp: shadow_vp.unwrap_or(Mat4::IDENTITY).to_cols_array_2d(),
             // Offset by 1.5 shadow texels to avoid self-shadowing
-            shadow: [if shadow_vp.is_some() { 1.0 } else { 0.0 }, 1.0 / SHADOW_SIZE as f32, radius * 3.0 / SHADOW_SIZE as f32, 0.0],
+            shadow: [
+                if shadow_vp.is_some() { 1.0 } else { 0.0 },
+                1.0 / s.shadow_size as f32,
+                radius * 3.0 / s.shadow_size as f32,
+                s.shadow_opacity.clamp(0.0, 1.0),
+            ],
             material: [if s.spec_gloss { 1.0 } else { 0.0 }, if s.parallax { 1.0 } else { 0.0 }, sample as f32, s.ior],
             scatter: [s.scatter[0], s.scatter[1], s.scatter[2], if sss.is_some() { 1.0 } else { 0.0 }],
             fwd: [fwd.x, fwd.y, fwd.z, 0.0],

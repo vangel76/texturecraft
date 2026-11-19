@@ -23,7 +23,7 @@ use std::sync::Arc;
 use rayon::prelude::*;
 use texturecraft_compose::{Composite, ImageRes};
 use texturecraft_core::Channel;
-use texturecraft_core::project::{DisplaySettings, ToneMapping};
+use texturecraft_core::project::{DisplaySettings, EnvAlignment, ToneMapping};
 use texturecraft_geom::glam::{Vec2, Vec3};
 use texturecraft_geom::{Bvh, Mesh, OrbitCamera};
 
@@ -47,6 +47,8 @@ pub struct TraceScene {
     pub env: Arc<EnvImage>,
     /// Environment rotation around +Y (radians), as in the viewport.
     pub env_rotation: f32,
+    /// The environment turns with the camera about the vertical axis (Environment Alignment: Camera). Only the GPU tracer follows the camera.
+    pub env_camera: bool,
     /// Texture set per triangle (`usize::MAX`: none, default material).
     pub(crate) tri_set: Arc<Vec<usize>>,
     /// Importance sampling of the environment (None for an empty image).
@@ -93,6 +95,7 @@ impl TraceScene {
             sets,
             env,
             env_rotation,
+            env_camera: false,
             tri_set: Arc::new(tri_set),
             light,
             spec_gloss: false,
@@ -130,6 +133,7 @@ impl TraceScene {
     /// [`TraceScene::for_display`] under `env`, from [`TraceScene::display_env`] of the same display.
     pub fn for_display_env(mesh: Arc<Mesh>, bvh: Arc<Bvh>, sets: Vec<TraceSet>, display: &DisplaySettings, env: Arc<EnvImage>) -> TraceScene {
         let mut scene = TraceScene::new(mesh, bvh, sets, env, display.env_rotation.to_radians());
+        scene.env_camera = display.env_alignment == EnvAlignment::Camera;
         scene.spec_gloss = display.spec_gloss;
         scene.set_scatter(display.scatter_color, display.scatter_radius);
         scene.ior = display.ior;

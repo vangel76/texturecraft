@@ -78,9 +78,13 @@ that closes it back onto the bar; the float is saved with the UI state.
   (*Environment Map* is a drop slot that shows the name, with the name as its tooltip: a click
   opens a thumbnail grid with the search *environment* and *reset query to default*, and an image
   dragged from the Assets panel is accepted; Opacity 0-100, Exposure (EV) -10 to 10, Blur 0-100
-  (default 35), Rotation; *Override environment map color space* with *Auto*, *Environment
-  Alignment* *World*), Shadows (*Shadows*; *Computation mode* *Lightweight* and *Shadows opacity*
-  100 greyed) and Camera settings (*Preset* and *Restore* work on the saved cameras). The whole
+  (default 35), Rotation; *Override environment map color space* with *Auto* greyed;
+  *Environment Alignment* *World* or *Camera*: Camera turns the environment, and the key light
+  with it, with the camera about the vertical axis, so the lighting stays with the view while
+  orbiting; Rendering mode follows it on the GPU tracer only), Shadows (*Shadows*; *Computation
+  mode* *Intensive*, *Average* or *Lightweight* (default) sets the shadow map to 4096, 3072 or
+  2048 texels, and *Shadows opacity* 0-100 (default 100) says how dark the shadows are; both work
+  only while *Shadows* is on) and Camera settings (*Preset* and *Restore* work on the saved cameras). The whole
   Environment section is greyed while a mesh map shows. Opacity and Blur are stored as fractions
   (the commands keep 0 to 1). Post effects, Render settings (temporal anti-aliasing) and
   Visualization settings (wireframes, the unlit switch) keep TextureCraft's own controls; the

@@ -173,3 +173,53 @@ fn settings_general_has_a_working_background_color_with_two_eyedroppers() {
     assert_eq!(h.state().ui.prefs.background[0], [0.5, 0.2, 0.1]);
     assert_eq!(h.state().ui.prefs.background[1], bottom, "the bottom color is its own");
 }
+
+/// The dropdown that shows `value`
+fn dropdown<'a>(h: &'a Harness<'_, TextureCraftApp>, value: &str) -> egui_kittest::Node<'a> {
+    h.get_all_by_role(Role::ComboBox).find(|node| node.value().as_deref() == Some(value)).unwrap_or_else(|| panic!("a dropdown showing {value}"))
+}
+
+#[test]
+fn environment_alignment_offers_world_and_camera_and_applies() {
+    let mut h = app();
+    assert!(!dropdown(&h, "World").accesskit_node().is_disabled(), "the alignment works now");
+    dropdown(&h, "World").scroll_to_me();
+    h.run_steps(SETTLE);
+    dropdown(&h, "World").click();
+    h.run_steps(SETTLE);
+    assert!(h.query_all_by_label("World").next().is_some() && h.query_all_by_label("Camera").next().is_some(), "both alignments are offered");
+    h.get_by_label("Camera").click();
+    h.run_steps(SETTLE);
+    assert_eq!(display(&h).env_alignment, texturecraft_engine::core::project::EnvAlignment::Camera);
+    dropdown(&h, "Camera");
+}
+
+#[test]
+fn the_shadow_quality_rows_work_only_while_shadows_are_on() {
+    use texturecraft_engine::core::project::ShadowMode;
+
+    let mut h = app();
+    assert!(!display(&h).shadows);
+    assert!(dropdown(&h, "Lightweight").accesskit_node().is_disabled(), "Computation mode waits for Shadows");
+    assert!(values(&h).iter().any(|value| value == "100"), "Shadows opacity starts at 100");
+    drag(&mut h, "Shadows opacity", 20.0);
+    assert_eq!(display(&h).shadow_opacity, 1.0, "the opacity does nothing while Shadows is off");
+
+    h.get_by_role_and_label(Role::CheckBox, "Shadows").click();
+    h.run_steps(SETTLE);
+    assert!(display(&h).shadows);
+    assert!(!dropdown(&h, "Lightweight").accesskit_node().is_disabled());
+
+    dropdown(&h, "Lightweight").click();
+    h.run_steps(SETTLE);
+    for mode in ["Intensive", "Average", "Lightweight"] {
+        assert!(h.query_by_label(mode).is_some(), "{mode} is offered");
+    }
+    h.get_by_label("Intensive").click();
+    h.run_steps(SETTLE);
+    assert_eq!(display(&h).shadow_mode, ShadowMode::Intensive);
+
+    drag(&mut h, "Shadows opacity", 20.0);
+    let opacity = display(&h).shadow_opacity;
+    assert!(opacity < 0.9, "the slider sets the opacity: {opacity}");
+}

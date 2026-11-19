@@ -94,6 +94,7 @@ struct SceneConst {
     eps: f32,
     sigma: Vec3,
     rotation: f32,
+    env_camera: bool,
     heights: Vec<f32>,
     ior: f32,
     /// Focus depth (0: the orbit target) and lens radius in world units (0: pinhole).
@@ -413,6 +414,7 @@ impl GpuTracer {
             eps: scene.eps,
             sigma: scene.scatter_sigma,
             rotation: scene.env_rotation,
+            env_camera: scene.env_camera,
             heights: scene.sets.iter().map(|s| s.height_strength).collect(),
             ior: scene.ior,
             lens: scene.lens.map_or([0.0; 2], |[focus, aperture]| [focus, aperture.max(0.0) * scene.radius]),
@@ -597,7 +599,7 @@ impl GpuTracer {
         });
         let (w, h) = (acc.width, acc.height);
         let inv_vp = cam.view_proj(w as f32 / h as f32).inverse();
-        let (sin, cos) = sc.rotation.sin_cos();
+        let (sin, cos) = (sc.rotation + if sc.env_camera { crate::renderer::camera_yaw(cam) } else { 0.0 }).sin_cos();
         let head = Head {
             inv_vp: inv_vp.to_cols_array(),
             forward: cam.forward().extend(sc.eps).to_array(),

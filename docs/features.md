@@ -194,7 +194,8 @@ Everything TextureCraft does today, by area. What's still missing is in [`ROADMA
   plain drag, so a pen and tablet can navigate without a keyboard or wheel (Viewport menu ▸
   Navigation buttons hides them).
 - **Display Settings** pick the environment from a thumbnail grid (or drop an image on the slot),
-  with opacity and blur in percent; Settings > General > Background color sets the plain
+  with opacity and blur in percent, an environment alignment to the world or the camera and a
+  shadow quality and opacity; Settings > General > Background color sets the plain
   background (top and bottom color) that shows at environment opacity 0.
 - **Perspective (F5) or orthographic (F6)** projection, and **front, back, left, right, top and
   bottom views** that frame the mesh (Viewport menu; bind your own keys in Settings).

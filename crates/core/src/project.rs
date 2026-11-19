@@ -262,6 +262,80 @@ pub enum ToneMapping {
     AcesFilmic,
 }
 
+/// What the environment is fixed to (Display settings > Environment Alignment)
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum EnvAlignment {
+    /// The environment stays with the scene: orbiting the camera looks around it
+    #[default]
+    World,
+    /// The environment turns with the camera (about the vertical axis): the lighting stays the same while orbiting
+    Camera,
+}
+
+impl EnvAlignment {
+    pub const ALL: [EnvAlignment; 2] = [EnvAlignment::World, EnvAlignment::Camera];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            EnvAlignment::World => "World",
+            EnvAlignment::Camera => "Camera",
+        }
+    }
+
+    pub fn id(self) -> &'static str {
+        match self {
+            EnvAlignment::World => "world",
+            EnvAlignment::Camera => "camera",
+        }
+    }
+
+    pub fn parse(id: &str) -> Option<EnvAlignment> {
+        Self::ALL.into_iter().find(|alignment| alignment.id() == id)
+    }
+}
+
+/// How the key light's shadows are computed (Display settings > Computation mode): the shadow map's resolution
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum ShadowMode {
+    Intensive,
+    Average,
+    #[default]
+    Lightweight,
+}
+
+impl ShadowMode {
+    pub const ALL: [ShadowMode; 3] = [ShadowMode::Intensive, ShadowMode::Average, ShadowMode::Lightweight];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            ShadowMode::Intensive => "Intensive",
+            ShadowMode::Average => "Average",
+            ShadowMode::Lightweight => "Lightweight",
+        }
+    }
+
+    pub fn id(self) -> &'static str {
+        match self {
+            ShadowMode::Intensive => "intensive",
+            ShadowMode::Average => "average",
+            ShadowMode::Lightweight => "lightweight",
+        }
+    }
+
+    pub fn parse(id: &str) -> Option<ShadowMode> {
+        Self::ALL.into_iter().find(|mode| mode.id() == id)
+    }
+
+    /// Edge of the square shadow map, in texels
+    pub fn map_size(self) -> u32 {
+        match self {
+            ShadowMode::Intensive => 4096,
+            ShadowMode::Average => 3072,
+            ShadowMode::Lightweight => 2048,
+        }
+    }
+}
+
 /// Viewport display settings (saved with the project). Fields missing from
 /// older projects take their defaults.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -276,6 +350,12 @@ pub struct DisplaySettings {
     /// Degrees.
     pub env_rotation: f32,
     pub shadows: bool,
+    /// What the environment turns with.
+    pub env_alignment: EnvAlignment,
+    /// The shadow map's quality (shadows only).
+    pub shadow_mode: ShadowMode,
+    /// How dark the shadows are, 0..1 (1 = the key light is fully blocked).
+    pub shadow_opacity: f32,
     /// A single-channel view shows the channel flat, without lighting (off: the channel on a lit neutral material).
     pub solo_unlit: bool,
     pub tone_mapping: ToneMapping,
@@ -371,6 +451,9 @@ impl Default for DisplaySettings {
             env_blur: 0.35,
             env_rotation: 0.0,
             shadows: false,
+            env_alignment: EnvAlignment::World,
+            shadow_mode: ShadowMode::Lightweight,
+            shadow_opacity: 1.0,
             solo_unlit: true,
             tone_mapping: ToneMapping::AcesFilmic,
             fov: 40.0,

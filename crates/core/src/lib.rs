@@ -30,8 +30,8 @@ pub use layer::{
     TileSymmetry, gradient, hsl_adjust, per_unit,
 };
 pub use project::{
-    AoMixing, BlockScales, Camera, DepthOfField, DisplaySettings, FORMAT_VERSION, MAX_RESOLUTION, MIN_RESOLUTION, NormalFormat, NormalMixing, Project,
-    TANGENT_BENT_NORMAL_VERSION, TextureSet, TileGrid, ToneMapping, UDIM_RANGE, udim_at,
+    AoMixing, BlockScales, Camera, DepthOfField, DisplaySettings, EnvAlignment, FORMAT_VERSION, MAX_RESOLUTION, MIN_RESOLUTION, NormalFormat, NormalMixing,
+    Project, ShadowMode, TANGENT_BENT_NORMAL_VERSION, TextureSet, TileGrid, ToneMapping, UDIM_RANGE, udim_at,
 };
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq)]

@@ -6,7 +6,7 @@ use serde_json::json;
 use texturecraft_engine::ViewMode;
 use texturecraft_engine::camera_cmds::DEFAULT_CAMERA;
 use texturecraft_engine::core::ToneMapping;
-use texturecraft_engine::core::project::DisplaySettings;
+use texturecraft_engine::core::project::{DisplaySettings, EnvAlignment, ShadowMode};
 
 use crate::TextureCraftApp;
 use crate::i18n::tr;
@@ -23,9 +23,6 @@ pub(crate) const SECTIONS: [PageSection; 5] = [
     PageSection { icon: ic::CUBE, title: "Render settings" },
     PageSection { icon: ic::CHECKERBOARD, title: "Visualization settings" },
 ];
-
-/// What the reference's shadow opacity slider shows until TextureCraft's shadows have an opacity
-const SHADOWS_OPACITY_SHOWN: f32 = 100.0;
 
 /// Indent of the rows under a sub-heading (Environment, Shadows)
 const ROW_INDENT: f32 = 12.0;
@@ -99,14 +96,25 @@ fn environment(app: &mut TextureCraftApp, ui: &mut Ui, display: &mut DisplaySett
             slider(ui, tr("Environment Exposure (EV)"), &mut display.env_exposure, -10.0..=10.0, 2);
             percent_slider(ui, tr("Environment Blur"), &mut display.env_blur);
             slider(ui, tr("Environment Rotation"), &mut display.env_rotation, 0.0..=360.0, 0);
-            unavailable::combo(ui, tr("Environment Alignment"), tr("World"));
+            combo(ui, tr("Environment Alignment"), tr(display.env_alignment.label()), |ui| {
+                for alignment in EnvAlignment::ALL {
+                    ui.selectable_value(&mut display.env_alignment, alignment, tr(alignment.label()));
+                }
+            });
         });
 
         sub_heading(ui, tr("Shadows"));
         indented(ui, |ui| {
             ui.checkbox(&mut display.shadows, tr("Shadows")).on_hover_text(tr("Key light (shadow-casting light, direct only)"));
-            unavailable::combo(ui, tr("Computation mode"), tr("Lightweight"));
-            unavailable::slider(ui, tr("Shadows opacity"), SHADOWS_OPACITY_SHOWN, 0.0..=100.0, 0);
+            // The shadow settings work only while shadows are on
+            ui.add_enabled_ui(display.shadows, |ui| {
+                combo(ui, tr("Computation mode"), tr(display.shadow_mode.label()), |ui| {
+                    for mode in ShadowMode::ALL {
+                        ui.selectable_value(&mut display.shadow_mode, mode, tr(mode.label()));
+                    }
+                });
+                percent_slider(ui, tr("Shadows opacity"), &mut display.shadow_opacity);
+            });
         });
         import_hdr
     })
@@ -231,6 +239,5 @@ fn render_settings(ui: &mut Ui, display: &mut DisplaySettings) {
 fn visualization(app: &mut TextureCraftApp, ui: &mut Ui, display: &mut DisplaySettings) {
     ui.checkbox(&mut app.ui.wireframe_3d, tr("Show wireframe in the 3D view"));
     ui.checkbox(&mut app.ui.uv_wireframe, tr("Show UV wireframe in the 2D view"));
-    ui.checkbox(&mut display.solo_unlit, tr("Display solo view without lighting (unlit)"))
-        .on_hover_text(tr("Off: a single-channel view in the 3D view shows the channel on a lit neutral material"));
+    ui.checkbox(&mut display.solo_unlit, tr("Display solo view without lighting (unlit)"));
 }

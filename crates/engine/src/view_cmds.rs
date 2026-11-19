@@ -2,7 +2,7 @@
 
 use serde_json::{Value, json};
 use texturecraft_core::project::ENVIRONMENTS;
-use texturecraft_core::{BakedMap, Channel, ToneMapping};
+use texturecraft_core::{BakedMap, Channel, EnvAlignment, ShadowMode, ToneMapping};
 use texturecraft_geom::glam::Vec3;
 
 use crate::commands::{CommandSpec, always, bad, boolp, can_redo, can_undo, color_param, f32p, strp, u64p};
@@ -68,7 +68,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Display settings",
             [],
             None,
-            "{environment?: <built-in>|resource:<image resource>, exposure?, blur?, rotation?, opacity?, toneMapping?: linear|aces, fov?, shadows?, soloUnlit? (single-channel views flat; off: lit), aoIntensity?, bloom?, vignette?, sharpen?, grain?, postEffects?, taa?, specGloss?, parallax?, displacement? (the viewport moves the surface by the height channel), scatterColor?: [r,g,b] linear or \"#rrggbb\" sRGB, scatterRadius? (0..1 of the mesh radius), ior? (1..3, transmission), dof?: {enabled?, focusDistance? (view depth, world units; 0 = the orbit target), aperture? (lens radius, 0..1 of the mesh radius)}}",
+            "{environment?: <built-in>|resource:<image resource>, exposure?, blur?, rotation?, opacity?, toneMapping?: linear|aces, fov?, shadows?, shadowMode? (intensive|average|lightweight: the shadow map resolution), shadowOpacity? (0..1: how dark the shadows are), alignment? (world|camera: what the environment turns with), soloUnlit? (single-channel views flat; off: lit), aoIntensity?, bloom?, vignette?, sharpen?, grain?, postEffects?, taa?, specGloss?, parallax?, displacement? (the viewport moves the surface by the height channel), scatterColor?: [r,g,b] linear or \"#rrggbb\" sRGB, scatterRadius? (0..1 of the mesh radius), ior? (1..3, transmission), dof?: {enabled?, focusDistance? (view depth, world units; 0 = the orbit target), aperture? (lens radius, 0..1 of the mesh radius)}}",
             always,
             display
         ),
@@ -273,6 +273,14 @@ fn display(s: &mut Session, p: &Value) -> Result<Value> {
         Some(o) => return Err(bad("display.set", format!("unknown tone mapping `{o}`"))),
         None => None,
     };
+    let shadow_mode = match strp(p, "shadowMode") {
+        Some(id) => Some(ShadowMode::parse(id).ok_or_else(|| bad("display.set", format!("unknown shadow mode `{id}` (intensive, average or lightweight)")))?),
+        None => None,
+    };
+    let alignment = match strp(p, "alignment") {
+        Some(id) => Some(EnvAlignment::parse(id).ok_or_else(|| bad("display.set", format!("unknown environment alignment `{id}` (world or camera)")))?),
+        None => None,
+    };
     let env = strp(p, "environment").map(str::to_string);
     if let Some(name) = env.as_deref().and_then(|e| e.strip_prefix(texturecraft_core::project::ENV_RESOURCE_PREFIX))
         && !s.images.contains_key(name)
@@ -300,6 +308,7 @@ fn display(s: &mut Session, p: &Value) -> Result<Value> {
         ("grain", &mut d.grain, 0.0, 1.0),
         ("scatterRadius", &mut d.scatter_radius, 0.0, 1.0),
         ("ior", &mut d.ior, 1.0, 3.0),
+        ("shadowOpacity", &mut d.shadow_opacity, 0.0, 1.0),
     ] {
         if let Some(v) = f32p(p, k) {
             *slot = v.clamp(lo, hi);
@@ -313,6 +322,12 @@ fn display(s: &mut Session, p: &Value) -> Result<Value> {
     }
     if let Some(b) = boolp(p, "shadows") {
         d.shadows = b;
+    }
+    if let Some(mode) = shadow_mode {
+        d.shadow_mode = mode;
+    }
+    if let Some(alignment) = alignment {
+        d.env_alignment = alignment;
     }
     if let Some(dof) = p.get("dof") {
         if let Some(b) = boolp(dof, "enabled") {
@@ -415,6 +430,33 @@ mod tests {
         let r = execute(&mut s, "display.set", &json!({"soloUnlit": false})).unwrap();
         assert_eq!(r["solo_unlit"], json!(false));
         assert!(!s.doc.project.display.solo_unlit);
+    }
+
+    #[test]
+    fn alignment_and_shadow_quality_are_display_settings_with_the_reference_defaults() {
+        let mut s = sphere_session();
+        let d = &s.doc.project.display;
+        assert_eq!((d.env_alignment, d.shadow_mode, d.shadow_opacity), (EnvAlignment::World, ShadowMode::Lightweight, 1.0));
+        assert_eq!(ShadowMode::ALL.map(ShadowMode::label), ["Intensive", "Average", "Lightweight"]);
+        assert_eq!(EnvAlignment::ALL.map(EnvAlignment::label), ["World", "Camera"]);
+        assert!(ShadowMode::Intensive.map_size() > ShadowMode::Average.map_size() && ShadowMode::Average.map_size() > ShadowMode::Lightweight.map_size());
+
+        let r = execute(&mut s, "display.set", &json!({"alignment": "camera", "shadowMode": "intensive", "shadowOpacity": 0.4})).unwrap();
+        let d = &s.doc.project.display;
+        assert_eq!((d.env_alignment, d.shadow_mode, d.shadow_opacity), (EnvAlignment::Camera, ShadowMode::Intensive, 0.4));
+        assert_eq!((r["env_alignment"].as_str(), r["shadow_mode"].as_str()), (Some("Camera"), Some("Intensive")));
+        execute(&mut s, "display.set", &json!({"shadowOpacity": 3.0})).unwrap();
+        assert_eq!(s.doc.project.display.shadow_opacity, 1.0, "the opacity is clamped to 0..1");
+        for bad in [json!({"alignment": "screen"}), json!({"shadowMode": "ultra"})] {
+            assert!(execute(&mut s, "display.set", &bad).is_err(), "{bad}");
+        }
+        assert_eq!(s.doc.project.display.env_alignment, EnvAlignment::Camera, "a rejected call changes nothing");
+
+        // Projects saved before these settings open with the defaults
+        let old: texturecraft_core::DisplaySettings = serde_json::from_value(json!({"environment": "Night", "shadows": true})).unwrap();
+        assert_eq!((old.env_alignment, old.shadow_mode, old.shadow_opacity), (EnvAlignment::World, ShadowMode::Lightweight, 1.0));
+        let saved: texturecraft_core::DisplaySettings = serde_json::from_value(serde_json::to_value(&s.doc.project.display).unwrap()).unwrap();
+        assert_eq!(saved, s.doc.project.display, "the settings survive a save");
     }
 
     #[test]

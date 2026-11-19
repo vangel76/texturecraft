@@ -18,7 +18,7 @@ struct Globals {
     uv_xform: vec4<f32>, // UV view: scale xy, offset zw (clip space)
     light: vec4<f32>,    // xyz world direction to the key light (rotated with the environment), w intensity (0 = off)
     light_vp: mat4x4<f32>, // world -> shadow map clip space
-    shadow: vec4<f32>,   // x shadows on (1), y shadow map texel (uv), z normal offset (world units), w -
+    shadow: vec4<f32>,   // x shadows on (1), y shadow map texel (uv), z normal offset (world units), w shadow opacity (0..1)
     material: vec4<f32>, // x specular/glossiness shading (1), y parallax occlusion (1), z accumulation sample index, w IOR of transmission
     scatter: vec4<f32>,  // xyz per-channel diffuse wrap at scattering weight 1 (0 = Lambert), w G-buffer holds the scattering light (1)
     fwd: vec4<f32>,      // xyz camera view direction (unit), w -
@@ -651,7 +651,7 @@ fn shade_mesh(i: VOut, front: bool) -> Shaded {
         }
 
         if (g.shadow.x > 0.5 && nol > 0.0) {
-            let sh = shadow_factor(i.wpos, n_geo);
+            let sh = mix(1.0, shadow_factor(i.wpos, n_geo), g.shadow.w);
             direct *= sh;
             direct_diffuse *= sh;
         }

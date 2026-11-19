@@ -526,6 +526,10 @@ cameras, fixed views and `camera.set` yaw/pitch put a free camera level. `camera
 camera, the first or the last). The commands have no default keys and are bindable in Settings ▸ Keyboard.
 None is an undo step.
 
+`display.set` also takes `alignment` (`world` or `camera`: the environment, and the key light with it,
+turns with the camera about the vertical axis), `shadowMode` (`intensive`, `average` or `lightweight`, the
+default: the shadow map's resolution) and `shadowOpacity` (0 to 1, default 1: how dark the shadows are).
+
 `viewport.view {mode: "image", image: <image resource>}` shows a project image as it is, stretched over
 the UV square, on the mesh and in the 2D view (the view picker's "Other..."). `display.set {soloUnlit}`
 (default true) says whether a single-channel view is flat; off, Base color, Metallic, Roughness, Normal

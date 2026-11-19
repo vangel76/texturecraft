@@ -167,6 +167,79 @@ fn the_plain_background_follows_the_chosen_colors() {
     assert_ne!(environment.at(5, 5), plain.at(5, 5), "the environment replaces the plain color at Opacity 100");
 }
 
+/// Sum of the luma over the whole view: shadows take light away, so a darker shadow lowers it.
+fn total_luma(img: &Img) -> f32 {
+    img.mean(0, 0, 480, 360) * 480.0 * 360.0
+}
+
+/// Shadows opacity 0 leaves the key light unshadowed, 100 blocks it as before and values between
+/// give shadows in between; the computation mode changes the shadow map's resolution.
+#[test]
+fn shadow_opacity_and_computation_mode() {
+    let Some((mut h, frame)) = setup() else { return };
+    let lit = shaded(&frame, |s| s.light = LIGHT);
+    let off = render(&mut h, &lit, "shadow_opacity_off");
+    let opacity = |h: &mut Headless, value: f32, name: &str| {
+        render(
+            h,
+            &shaded(&lit, |s| {
+                s.shadows = true;
+                s.shadow_opacity = value;
+            }),
+            name,
+        )
+    };
+    let none = opacity(&mut h, 0.0, "shadow_opacity_0");
+    let half = opacity(&mut h, 0.5, "shadow_opacity_50");
+    let full = opacity(&mut h, 1.0, "shadow_opacity_100");
+    assert_same(&off, &none, "opacity 0 leaves the key light unshadowed");
+    let (l_off, l_half, l_full) = (total_luma(&off), total_luma(&half), total_luma(&full));
+    assert!(l_full < l_half - 1000.0 && l_half < l_off - 1000.0, "the shadows deepen with opacity ({l_off} > {l_half} > {l_full})");
+
+    let size = |h: &mut Headless, edge: u32, name: &str| {
+        render(
+            h,
+            &shaded(&lit, |s| {
+                s.shadows = true;
+                s.shadow_size = edge;
+            }),
+            name,
+        )
+    };
+    let light = size(&mut h, 512, "shadow_size_512");
+    let fine = size(&mut h, 4096, "shadow_size_4096");
+    assert_ne!(light.px, fine.px, "the computation mode changes the shadow edges");
+    assert!(total_luma(&light) < total_luma(&off) - 1000.0 && total_luma(&fine) < total_luma(&off) - 1000.0, "both still shadow the pedestal");
+}
+
+/// Environment Alignment: Camera keeps the lighting the same while the camera orbits (the ball looks the same from
+/// every side); World lets it change.
+#[test]
+fn the_environment_follows_the_camera_when_aligned_to_it() {
+    let Some((mut h, frame)) = setup() else { return };
+    let mut at_yaw = |yaw: f32, camera_aligned: bool, name: &str| {
+        let mut f = shaded(&frame, |s| s.env_camera = camera_aligned);
+        f.camera.set_angles(yaw, f.camera.pitch);
+        render(&mut h, &f, name)
+    };
+    // The mean difference of the ball's pixels between two views
+    let difference = |a: &Img, b: &Img| {
+        let mut sum = 0.0;
+        for y in 100..180 {
+            for x in 200..280 {
+                sum += (a.luma(x, y) - b.luma(x, y)).abs();
+            }
+        }
+        sum / (80.0 * 80.0)
+    };
+    let (world_a, world_b) = (at_yaw(0.0, false, "align_world_a"), at_yaw(1.8, false, "align_world_b"));
+    let (camera_a, camera_b) = (at_yaw(0.0, true, "align_camera_a"), at_yaw(1.8, true, "align_camera_b"));
+    assert_same(&world_a, &camera_a, "the two alignments agree looking along the world's Z axis");
+    let (world, camera) = (difference(&world_a, &world_b), difference(&camera_a, &camera_b));
+    assert!(world > 2.0, "World: the lighting changes while orbiting ({world})");
+    assert!(camera < world / 3.0, "Camera: the lighting stays with the view ({camera} against {world})");
+}
+
 #[test]
 fn the_combined_normal_view_shows_the_shading_normal_unlit() {
     let Some((mut h, frame)) = setup() else { return };
