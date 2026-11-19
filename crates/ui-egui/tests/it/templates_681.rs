@@ -32,7 +32,7 @@ fn save_as_template_asks_in_the_templates_folder_and_saves_without_a_message() {
     let mut h = app();
     let asked: Rc<RefCell<Vec<Request>>> = Rc::default();
     let seen = asked.clone();
-    let chosen = std::path::PathBuf::from("/nowhere/My starter.json");
+    let chosen = std::path::PathBuf::from("/nowhere/My starter v1.2.json");
     h.state_mut().file_dialogs.set_override(Some(Box::new(move |request: &Request| {
         seen.borrow_mut().push(request.clone());
         Answer::Paths(vec![chosen.clone()])
@@ -48,8 +48,16 @@ fn save_as_template_asks_in_the_templates_folder_and_saves_without_a_message() {
     assert_eq!(dialog.directory, Some(texturecraft_ui_egui::user_dir("templates")));
     assert_eq!(dialog.filters.len(), 1, "one file type");
     assert!(dialog.file_name.is_none(), "the name field starts empty");
-    assert!(h.state().session.templates.list.iter().any(|t| t.name == "My starter"), "the template is saved under the chosen file name");
+    assert!(h.state().session.templates.list.iter().any(|t| t.name == "My starter v1.2"), "the template is saved under the chosen file name");
     assert!(h.state().toasts.is_empty(), "no confirmation message");
+}
+
+#[test]
+fn reset_ui_and_loading_a_layout_keep_the_remembered_template() {
+    let mut h = app();
+    h.state_mut().ui.last_template = "Unlit - Emissive".into();
+    h.state_mut().ui.adopt_layout(texturecraft_ui_egui::state::UiState::default());
+    assert_eq!(h.state().ui.last_template, "Unlit - Emissive");
 }
 
 #[test]

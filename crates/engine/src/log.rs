@@ -28,7 +28,7 @@ pub const DEFAULT_SOURCE: &str = "TextureCraft";
 
 /// The source of everything about resources, templates, presets and materials: the Log
 /// panel's Assets tab shows these entries
-pub const LIBRARY_SOURCE: &str = "Library";
+pub const LIBRARY_SOURCE: &str = "Library agent";
 
 /// One log line
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -145,7 +145,7 @@ mod tests {
     fn entries_keep_source_level_and_message() {
         let mut log = LogStore::new();
         log.warn("Exporter", "map missing");
-        log.error("Library", "cannot be deleted");
+        log.error(LIBRARY_SOURCE, "cannot be deleted");
         log.push("plain".into());
         assert_eq!(log.len(), 3);
         assert_eq!(log[0].line(), "[Exporter] map missing");

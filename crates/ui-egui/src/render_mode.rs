@@ -869,7 +869,10 @@ pub(crate) fn settings_body(app: &mut TextureCraftApp, ui: &mut Ui) {
         ui.label(RichText::new(app.render.samples.to_string()).color(tokens.text_dim));
     });
     ui.add_space(6.0);
-    ui.label(RichText::new(tr("The path tracer adds samples while the view stands still. Environment, shadows and camera come from Display Settings; GPU or CPU tracing is set in Settings.")).color(tokens.text_dim));
+    ui.label(
+        RichText::new(tr("The path tracer adds samples while the view stands still. Environment, shadows and camera come from Display Settings."))
+            .color(tokens.text_dim),
+    );
 }
 
 /// Stop rendering (leaving Rendering mode frees the worker, the GPU memory and the image).

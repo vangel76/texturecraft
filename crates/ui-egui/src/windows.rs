@@ -429,14 +429,24 @@ pub fn load_layout(app: &mut TextureCraftApp) {
     });
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+/// The template name a chosen file name stands for: only a trailing ".json" is dropped, so
+/// "Metal v1.2" stays whole
+pub(crate) fn template_name_of(file_name: &str) -> &str {
+    match file_name.len().checked_sub(5) {
+        Some(at) if file_name.is_char_boundary(at) && file_name[at..].eq_ignore_ascii_case(".json") => &file_name[..at],
+        _ => file_name,
+    }
+}
+
 /// File > More save options > Save as template...: the project's settings as a template in the
 /// user templates folder. It saves without a confirmation and shows up in New project at once.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn save_as_template(app: &mut TextureCraftApp) {
     let dialog = FileDialog::save().title(tr("Save template")).filter(tr("Project template"), &["json"]).directory(crate::user_dir("templates"));
     app.ask_file(dialog, Bound::Project, |app, paths| {
-        if let Some(name) = paths.first().and_then(|path| path.file_stem()).and_then(|stem| stem.to_str()) {
-            app.run("project.template.save", json!({"name": name}));
+        if let Some(name) = paths.first().and_then(|path| path.file_name()).and_then(|name| name.to_str()) {
+            app.run("project.template.save", json!({"name": template_name_of(name)}));
         }
     });
 }
@@ -916,6 +926,14 @@ pub fn export(app: &mut TextureCraftApp, ctx: &egui::Context) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_template_name_keeps_dots_and_loses_only_json() {
+        assert_eq!(super::template_name_of("Metal v1.2.json"), "Metal v1.2");
+        assert_eq!(super::template_name_of("Metal v1.2"), "Metal v1.2");
+        assert_eq!(super::template_name_of("wood.2k.JSON"), "wood.2k");
+        assert_eq!(super::template_name_of("plain"), "plain");
+    }
+
     use egui_kittest::Harness;
     use egui_kittest::kittest::{NodeT as _, Queryable as _};
 

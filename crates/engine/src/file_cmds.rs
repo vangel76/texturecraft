@@ -569,7 +569,7 @@ fn export_textures(s: &mut Session, p: &Value) -> Result<Value> {
     if p.get("materialX").and_then(Value::as_bool).unwrap_or(false) {
         written.extend(write_materialx(s, &sets, &opts, std::path::Path::new(&dir), &mut warnings)?);
     }
-    s.log.info("Exporter", format!("Exported {} textures to {dir}", written.len()));
+    s.log.info("MapExporter", format!("Exported {} textures to {dir}", written.len()));
     Ok(json!({ "files": written.iter().map(|p| p.display().to_string()).collect::<Vec<_>>(), "warnings": warnings }))
 }
 

@@ -123,6 +123,24 @@ fn context_menu(app: &mut TextureCraftApp, ui: &mut Ui, shown: LogChannel) {
     }
 }
 
+fn shown_assets_filter(app: &TextureCraftApp) -> bool {
+    app.ui.log_channel == LogChannel::Assets
+}
+
+fn rect_id() -> egui::Id {
+    egui::Id::unique("log_panel_rect")
+}
+
+/// Whether this frame's Copy event belongs to the Log: lines are selected and the pointer is over
+/// the panel. The app's layer copy must not run on the same Ctrl+C.
+pub(crate) fn takes_copy(app: &TextureCraftApp, ctx: &egui::Context) -> bool {
+    let over = ctx
+        .data(|data| data.get_temp::<(egui::Rect, u64)>(rect_id()))
+        .filter(|(_, pass)| pass + 2 >= ctx.cumulative_pass_nr())
+        .is_some_and(|(rect, _)| ctx.input(|input| input.pointer.hover_pos().is_some_and(|at| rect.contains(at))));
+    over && !app.ui.log_selection.is_empty() && ctx.input(|input| input.events.iter().any(|event| matches!(event, egui::Event::Copy)))
+}
+
 /// The Log panel body (a dock tab or rail popup)
 pub(crate) fn body(app: &mut TextureCraftApp, ui: &mut Ui) {
     ui.horizontal(|ui| {
@@ -136,12 +154,25 @@ pub(crate) fn body(app: &mut TextureCraftApp, ui: &mut Ui) {
     });
     ui.separator();
 
+    // A new session has a new log: indices chosen in the old one point at other lines
+    if app.ui.log_project != app.session.project_id {
+        app.ui.log_project = app.session.project_id;
+        app.ui.log_selection.clear();
+        app.ui.log_anchor = None;
+    }
+
+    if shown_assets_filter(app) {
+        crate::unavailable::greyed(ui, |ui| ui.add(egui::Button::new(egui_phosphor::regular::WARNING).selected(false)));
+    }
+
     let tk = Tokens::get(ui.ctx());
     let shown = app.ui.log_channel;
     let rows = listed(app, shown);
 
     // The empty space under the lines has the same menu as a line; the lines sit on top of it
     let area = ui.available_rect_before_wrap();
+    let pass = ui.ctx().cumulative_pass_nr();
+    ui.ctx().data_mut(|data| data.insert_temp(rect_id(), (area, pass)));
     let background = ui.interact(area, ui.make_persistent_id(("log-background", shown.name())), egui::Sense::click());
     background.context_menu(|ui| context_menu(app, ui, shown));
     if ui.rect_contains_pointer(area) && ui.input(|input| input.events.iter().any(|event| matches!(event, egui::Event::Copy))) {
@@ -176,7 +207,7 @@ mod tests {
 
     #[test]
     fn the_source_picks_the_channel() {
-        assert_eq!(channel_of(&LogEntry::new(LogLevel::Error, "Library", "resource stone.png: unsupported format")), LogChannel::Assets);
+        assert_eq!(channel_of(&LogEntry::new(LogLevel::Error, "Library agent", "resource stone.png: unsupported format")), LogChannel::Assets);
         assert_eq!(channel_of(&LogEntry::new(LogLevel::Info, "Project", "Saved /tmp/a.tcraft")), LogChannel::General);
         assert_eq!(channel_of(&LogEntry::new(LogLevel::Info, "Exporter", "Exported 4 textures to /tmp")), LogChannel::General);
     }

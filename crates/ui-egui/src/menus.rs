@@ -249,7 +249,7 @@ pub fn invoke(app: &mut TextureCraftApp, ctx: &egui::Context, id: &str) {
         "ui.navButtons" => app.ui.nav_buttons = !app.ui.nav_buttons,
         "ui.resetPanelLayout" => app.ui.reset_panel_layout(),
         "ui.resetUi" => app.ui.windows.confirm_reset_ui = true,
-        "ui.layout.save.painting" => crate::windows::save_layout(app, Mode::Painting),
+        "ui.layout.save" | "ui.layout.save.painting" => crate::windows::save_layout(app, Mode::Painting),
         "ui.layout.save.rendering" => crate::windows::save_layout(app, Mode::Rendering),
         "ui.layout.save.baking" => crate::windows::save_layout(app, Mode::Baking),
         "ui.layout.load" => crate::windows::load_layout(app),
@@ -520,7 +520,11 @@ pub fn shortcuts(app: &mut TextureCraftApp, ctx: &egui::Context) {
         commands
     });
 
+    let log_copies = crate::log_panel::takes_copy(app, ctx);
     for id in &commands_to_invoke {
+        if log_copies && id == "layer.copy" {
+            continue;
+        }
         if matches!(id.as_str(), "layer.copy" | "layer.cut")
             && let Some(layer) = app.session.selected_layer().and_then(|layer| app.session.doc.project.layers.get(&layer))
         {

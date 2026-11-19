@@ -455,7 +455,8 @@ pub fn show(app: &mut TextureCraftApp, ui: &mut Ui) {
     // the panels its Views menu greys out stay until the user closes them
     let dock_mode = if app.ui.mode == crate::state::Mode::Rendering { crate::state::Mode::Painting } else { app.ui.mode };
     for panel in Panel::ALL {
-        if !panel.available_in(dock_mode) && app.ui.dock.is_open(panel) {
+        let kept = panel.available_in(dock_mode) || (panel == Panel::Renderer && app.ui.mode == crate::state::Mode::Rendering);
+        if !kept && app.ui.dock.is_open(panel) {
             app.ui.dock.close(panel);
         }
     }

@@ -95,9 +95,9 @@ that closes it back onto the bar; the float is saved with the UI state.
   TextureCraft's "PBR - Metallic Roughness" shown under the reference name, and the template file
   is always stored in the user templates folder (the file name chosen in the dialog becomes the
   template name) as a `.json` file instead of `.spt`.
-- **Log:** *GENERAL* and *ASSETS* tabs. Every entry has a source, a level and a message; the
+- **Log:** *GENERAL* and *ASSETS* tabs. Every entry has a source (the reference tags "Library agent" and "MapExporter" are used for library and texture-export entries, TextureCraft's own names elsewhere), a level and a message; the
   lines read `[Source] message` with no time stamp, light grey for info, yellow-orange for
-  warnings and red for errors. Entries with the source `Library` (resources, templates, presets,
+  warnings and red for errors. Entries with the source `Library agent` (resources, templates, presets,
   PBR and MaterialX imports) go under ASSETS; the status bar still shows the latest message of
   either. Lines multi-select (click, Ctrl+click, Shift+click). The right-click menu (on a line or
   on the empty space) has *Copy to clipboard* `Ctrl+C`, a separator and *Clear* (GENERAL) or

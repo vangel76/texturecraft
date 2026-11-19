@@ -3,7 +3,7 @@
 
 use egui::{Event, Modifiers, OutputCommand};
 use egui_kittest::Harness;
-use egui_kittest::kittest::Queryable;
+use egui_kittest::kittest::{NodeT, Queryable};
 use texturecraft_ui_egui::TextureCraftApp;
 use texturecraft_ui_egui::docking::Panel;
 
@@ -17,8 +17,8 @@ fn app() -> Harness<'static, TextureCraftApp> {
         log.info("Exporter", "first");
         log.warn("Exporter", "second");
         log.error("Python", "third");
-        log.error("Library", "asset one");
-        log.warn("Library", "asset two");
+        log.error("Library agent", "asset one");
+        log.warn("Library agent", "asset two");
     }
     h.state_mut().ui.dock.focus(Panel::Log);
     h.run_steps(5);
@@ -45,7 +45,7 @@ fn lines_read_source_and_message_without_a_time_stamp() {
     let h = app();
     assert!(h.query_all_by_label("[Exporter] first").next().is_some());
     assert!(h.query_all_by_label("[Python] third").next().is_some());
-    assert!(h.query_all_by_label("[Library] asset one").next().is_none(), "asset lines wait under ASSETS");
+    assert!(h.query_all_by_label("[Library agent] asset one").next().is_none(), "asset lines wait under ASSETS");
 }
 
 #[test]
@@ -77,6 +77,45 @@ fn ctrl_c_copies_the_selected_lines_as_plain_text() {
         _ => None,
     });
     assert_eq!(copied.as_deref(), Some("[Exporter] first\n[Exporter] second\n[Python] third"));
+    assert!(h.state().session.clipboard.is_none(), "the same Ctrl+C does not also copy the layer");
+}
+
+#[test]
+fn a_new_project_starts_with_no_line_selected() {
+    let mut h = app();
+    key_click(&mut h, "[Exporter] first", Modifiers::NONE);
+    assert_eq!(h.state().ui.log_selection.len(), 1);
+    h.state_mut().run("project.new", serde_json::json!({}));
+    h.run_steps(3);
+    assert!(h.state().ui.log_selection.is_empty());
+}
+
+#[test]
+fn assets_has_a_greyed_filter_button_with_the_hint() {
+    let mut h = app();
+    assert!(h.query_by_label(egui_phosphor::regular::WARNING).is_none(), "GENERAL has no filter button");
+    h.get_by_label("ASSETS").click();
+    h.run_steps(3);
+    let button = h.get_by_label(egui_phosphor::regular::WARNING);
+    assert!(button.accesskit_node().is_disabled());
+    let at = button.rect().center();
+    h.hover_at(egui::pos2(1.0, 1.0));
+    h.run_steps(2);
+    h.hover_at(at);
+    h.run_steps(30);
+    assert!(h.query_by_label(texturecraft_ui_egui::unavailable::NOT_AVAILABLE).is_some());
+}
+
+#[test]
+fn renderer_settings_stays_open_when_opened_in_rendering_mode() {
+    let mut h = app();
+    h.state_mut().ui.mode = texturecraft_ui_egui::state::Mode::Rendering;
+    h.run_steps(3);
+    let ctx = h.ctx.clone();
+    texturecraft_ui_egui::menus::invoke(h.state_mut(), &ctx, "ui.view.renderer");
+    h.run_steps(5);
+    assert!(h.state().ui.dock.is_open(Panel::Renderer));
+    assert!(h.query_by_label("Tracer").is_some());
 }
 
 #[test]
@@ -115,8 +154,8 @@ fn the_assets_menu_clears_all_or_only_the_selected_lines() {
     let mut h = app();
     h.get_by_label("ASSETS").click();
     h.run_steps(3);
-    key_click(&mut h, "[Library] asset one", Modifiers::NONE);
-    line(&h, "[Library] asset one").click_secondary();
+    key_click(&mut h, "[Library agent] asset one", Modifiers::NONE);
+    line(&h, "[Library agent] asset one").click_secondary();
     h.run_steps(3);
     assert!(h.query_by_label("Clear all").is_some());
     h.get_by_label("Clear selected").click();
@@ -124,7 +163,7 @@ fn the_assets_menu_clears_all_or_only_the_selected_lines() {
     let remaining: Vec<String> = h.state().session.log.iter().filter(|entry| entry.is_asset()).map(|entry| entry.message.clone()).collect();
     assert_eq!(remaining, vec!["asset two".to_string()]);
 
-    line(&h, "[Library] asset two").click_secondary();
+    line(&h, "[Library agent] asset two").click_secondary();
     h.run_steps(3);
     h.get_by_label("Clear all").click();
     h.run_steps(3);

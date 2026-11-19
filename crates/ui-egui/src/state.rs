@@ -528,6 +528,9 @@ pub struct UiState {
     /// The Log line a Shift+click extends from
     #[serde(skip)]
     pub log_anchor: Option<usize>,
+    /// The project the selected Log lines were chosen in; another project's log starts unselected
+    #[serde(skip)]
+    pub log_project: u64,
 }
 
 impl UiState {
@@ -577,6 +580,7 @@ impl UiState {
 
         self.export = keep.export;
         self.recent = keep.recent;
+        self.last_template = keep.last_template;
         self.prefs = keep.prefs;
         self.nav_buttons = keep.nav_buttons;
         self.keymap = keep.keymap;
@@ -646,6 +650,7 @@ impl Default for UiState {
             last_template: String::new(),
             log_selection: Default::default(),
             log_anchor: None,
+            log_project: 0,
         }
     }
 }

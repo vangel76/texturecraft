@@ -169,18 +169,18 @@ const STATUS_BAR_TOP: f32 = WINDOW_SIZE.y - 22.0;
 fn the_log_tabs_show_one_channel_each() {
     let mut harness = app();
     harness.state_mut().session.log.info("Project", "Saved /somewhere/project.tcraft");
-    harness.state_mut().session.log.error("Library", "resource stone.png: not an image");
+    harness.state_mut().session.log.error("Library agent", "resource stone.png: not an image");
     click_rail(&mut harness, "Log");
 
     assert!(harness.query_by_label("GENERAL").is_some());
     assert!(log_lists(&harness, "[Project] Saved /somewhere/project.tcraft"));
-    assert!(!log_lists(&harness, "[Library] resource stone.png: not an image"), "asset messages wait under ASSETS");
+    assert!(!log_lists(&harness, "[Library agent] resource stone.png: not an image"), "asset messages wait under ASSETS");
 
     // The Log's own ASSETS tab
     harness.get_by_label("ASSETS").click();
     harness.run_steps(SETTLE_FRAMES);
 
-    assert!(log_lists(&harness, "[Library] resource stone.png: not an image"));
+    assert!(log_lists(&harness, "[Library agent] resource stone.png: not an image"));
     assert!(!log_lists(&harness, "[Project] Saved /somewhere/project.tcraft"));
 }
 
