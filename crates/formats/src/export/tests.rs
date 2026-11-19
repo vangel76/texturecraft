@@ -911,10 +911,19 @@ fn pgm_is_a_binary_graymap() {
     let first = u16::from_be_bytes([f.bytes[header.len()], f.bytes[header.len() + 1]]);
     assert!((i32::from(first) - 16384).abs() <= 2, "roughness 0.25: {first}");
 
-    // Colour becomes its luminance, with a warning
+    // Colour becomes its luminance, weighted in linear light, with a warning
     let files = fx.render(&one_map(FileFormat::Pgm, 8, rgba_half_alpha()));
     let f = find(&files, "out.pgm");
-    assert!(f.bytes.starts_with(b"P5\n64 64\n255\n") && f.warnings.iter().any(|w| w.contains("luminance")), "{:?}", f.warnings);
+    let header = b"P5\n64 64\n255\n";
+    assert!(f.bytes.starts_with(header) && f.warnings.iter().any(|w| w.contains("luminance")), "{:?}", f.warnings);
+    let [r, g, b] = fx.comp.value(Channel::BaseColor, 63, 0);
+    let want = (linear_to_srgb(0.2126 * r + 0.7152 * g + 0.0722 * b) * 255.0).round();
+    assert!((f32::from(f.bytes[header.len() + 63]) - want).abs() <= 1.0, "{} vs {want}", f.bytes[header.len() + 63]);
+
+    // Gray + alpha only loses the alpha
+    let la = vec![(Dest::L, SourceRef::Channel { channel: Channel::Roughness, component: 0 }), (Dest::A, SourceRef::Constant(0.5))];
+    let f = &fx.render(&one_map(FileFormat::Pgm, 8, la))[0];
+    assert!(f.warnings.iter().any(|w| w.contains("alpha")) && !f.warnings.iter().any(|w| w.contains("luminance")), "{:?}", f.warnings);
 }
 
 #[test]

@@ -1102,6 +1102,30 @@ fn encode(e: Encoding, size: (u32, u32), n: usize, data: &[f32], srgb: &[bool], 
         _ => {}
     }
 
+    // PGM holds one gray channel: colour becomes its luminance, from the linear values
+    let gray: Vec<f32>;
+    let gray_srgb: [bool; 1];
+    let (data, srgb, n): (&[f32], &[bool], usize) = if format == FileFormat::Pgm && n > 1 {
+        if n != 3 {
+            warnings.push("PGM has no alpha channel; alpha was dropped".into());
+        }
+        if n >= 3 {
+            warnings.push("PGM holds one gray channel; colour became its luminance".into());
+        }
+        gray = data
+            .chunks_exact(n)
+            .map(|px| match px {
+                [l, _] => *l,
+                [r, g, b, ..] => 0.2126 * r + 0.7152 * g + 0.0722 * b,
+                _ => 0.0,
+            })
+            .collect();
+        gray_srgb = [srgb.first().copied().unwrap_or(false)];
+        (&gray, &gray_srgb, 1)
+    } else {
+        (data, srgb, n)
+    };
+
     // Integer formats: transfer function and quantization first, then fit the channel layout
     let encoded: Vec<f32> =
         data.iter().enumerate().map(|(i, v)| if srgb.get(i % n).copied().unwrap_or(false) { linear_to_srgb(*v) } else { v.clamp(0.0, 1.0) }).collect();
@@ -1109,15 +1133,6 @@ fn encode(e: Encoding, size: (u32, u32), n: usize, data: &[f32], srgb: &[bool], 
         (FileFormat::Jpeg, 2 | 4) => {
             warnings.push("JPEG has no alpha channel; alpha was dropped".into());
             (remap(&encoded, n, if n == 2 { &[0] } else { &[0, 1, 2] }), n - 1)
-        }
-        (FileFormat::Pgm, 2..) => {
-            warnings.push("PGM holds one gray channel; colour became its luminance and alpha was dropped".into());
-            let gray = encoded.chunks_exact(n).map(|px| match px {
-                [l, _] => *l,
-                [r, g, b, ..] => 0.2126 * r + 0.7152 * g + 0.0722 * b,
-                _ => 0.0,
-            });
-            (gray.collect(), 1)
         }
         (FileFormat::Tiff, 2) => (remap(&encoded, 2, &[0, 0, 0, 1]), 4),
         _ => (encoded, n),
