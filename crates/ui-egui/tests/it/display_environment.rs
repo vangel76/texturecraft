@@ -160,6 +160,9 @@ fn settings_general_has_a_working_background_color_with_two_eyedroppers() {
         let label = format!("Pick the {side} Color from the Screen");
         let button = h.get_by_role_and_label(Role::Button, &label);
         assert!(!button.accesskit_node().is_disabled(), "the {side} eyedropper works");
+        button.hover();
+        h.run_steps(30);
+        assert_eq!(h.query_all_by_label(&label).count(), 1, "the {side} eyedropper shows no tooltip, as in the reference");
     }
     let [top, bottom] = h.state().ui.prefs.background;
     let srgb = |linear: [f32; 3]| linear.map(|v| (texturecraft_engine::texel::linear_to_srgb(v) * 255.0 + 0.5) as u8);

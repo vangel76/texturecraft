@@ -358,8 +358,9 @@ fn general(
         for (index, side, name) in [(0, "top", "Top background"), (1, "bottom", "Bottom background")] {
             let id = format!("settings_background_{side}");
             crate::widgets::color_swatch(ui, &id, &mut p.background[index], 38.0);
-            let tooltip = trf("Pick the {overlay} Color from the Screen", &[("overlay", &name)]);
-            crate::screen_color_pick::eyedropper(ui, ui.make_persistent_id(&id), &mut p.background[index], &tooltip, 18.0);
+            // The reference shows no tooltip here; the name is only for screen readers
+            let label = trf("Pick the {overlay} Color from the Screen", &[("overlay", &name)]);
+            crate::screen_color_pick::eyedropper_without_tooltip(ui, ui.make_persistent_id(&id), &mut p.background[index], &label, 18.0);
             ui.add_space(10.0);
         }
     });
