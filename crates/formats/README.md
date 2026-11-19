@@ -95,7 +95,7 @@ pub fn preset_to_json(preset: &ExportPreset) -> Result<String>;
   map baked, …); alpha from a missing channel is dropped.
 - Formats: PNG 8/16, JPEG 8 (q 95), JNG 8 (JPEG colour, deflate alpha), PGM 8/16 (gray; colour
   becomes luminance), TGA 8, TIFF 8/16/32f, BMP 8, WebP 8 (lossless), PSD 8/16 (merged image, no
-  layers), EXR 16f/32f (`Y`, `YA`, `RGB`, `RGBA`, ZIP), HDR 32f. 8-bit files can be dithered
+  layers; alpha is an extra alpha channel, not transparency), EXR 16f/32f (`Y`, `YA`, `RGB`, `RGBA`, ZIP), HDR 32f. 8-bit files can be dithered
   (`ExportOptions::dither`, an 8×8 ordered pattern). Color maps are sRGB in 8/16-bit and linear in
   float files; data maps are linear; height is stored as `h · 0.5 + 0.5`.
 - Final normal: Sobel normal from the height channel (strength = `height_strength`; with 1, a

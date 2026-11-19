@@ -227,7 +227,8 @@ Free rotation uses the same Alt+left drag (and right drag) as the constrained on
   png, psd and tiff, "32f bits" for tiff and hdr (hdr only that, greyed), "16f bits" and "32f
   bits" for exr; empty and greyed for "Based on output template". Padding adds "Dilation +
   diffusion" with a dilation width. PGM writes colour maps as their luminance; PSD holds the
-  merged image without layers.
+  merged image without layers, its alpha as an extra alpha channel (readers do not show it as
+  transparency).
 - **Exporting** ([#673](https://github.com/storytold/texturecraft/issues/673)): Export switches
   to LIST OF EXPORTS and writes one texture set per frame; the bottom bar becomes a progress bar
   with the percent and *Cancel Export* (it stops before the next texture set). The CONSOLE pane

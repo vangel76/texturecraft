@@ -379,7 +379,7 @@ File access follows `--read-root` / `--write-root` as for MCP.
 | `resource.import` | `{path}` |
 | `material.save` | `{path, layer?, name?}` |
 | `material.load` | `{path}` |
-| `textures.export` | `{dir, preset?, ts?, format?, padding?, size?, bitDepth?, dilation?, normalFormat?, maps?}` |
+| `textures.export` | `{dir, preset?, ts?, format?, padding?, size?, bitDepth?, dithering?, dilation?, normalFormat?, maps?}` |
 | `render` | `{view?, width?, height?, yaw?, pitch?}` → `{width, height, png}` |
 
 Brush preset operations are engine commands. Send each through `command.run` with the shown
