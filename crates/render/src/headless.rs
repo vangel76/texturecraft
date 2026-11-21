@@ -12,9 +12,11 @@ pub struct Headless {
 impl Headless {
     /// Create a device on the default adapter. Errors when no GPU (or software) adapter exists.
     pub fn new() -> Result<Headless, String> {
-        let instance = wgpu::Instance::default();
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default())).map_err(|e| format!("no GPU adapter: {e}"))?;
-        let adapter_name = adapter.get_info().name;
+        let info = adapter.get_info();
+        eprintln!("GPU probe adapter: {info:?}");
+        let adapter_name = info.name;
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default())).map_err(|e| format!("no GPU device: {e}"))?;
         let renderer = Renderer::new(&device, &queue, wgpu::TextureFormat::Rgba8Unorm);
         Ok(Headless { device, queue, renderer, adapter_name })

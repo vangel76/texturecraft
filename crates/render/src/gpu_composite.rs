@@ -3817,6 +3817,7 @@ mod procedural_tests {
         ];
         let channels = [Channel::BaseColor, Channel::Roughness, Channel::Height, Channel::Normal];
         for projection in projections {
+            eprintln!("GPU probe projection {projection:?}");
             let mut project = Project::new("Image source parity", "builtin:plane");
             project.texture_sets.push(TextureSet::new("Plane", 0, SIZE));
             let fill = Fill {
@@ -3855,10 +3856,13 @@ mod procedural_tests {
             let mut program = CompositeProgram::try_compile_region(&project, &pixels, 0, None).unwrap();
             program.set_tile_images(&images);
             program.set_surface_inputs(&mesh, &gbuf, Some(&baked)).unwrap();
+            eprintln!("GPU probe start material composition");
             gpu.renderer.composite_on_gpu(&gpu.device, &gpu.queue, 0, &program).unwrap();
+            eprintln!("GPU probe material composition returned");
             for kind in [DisplayKind::BaseColor, DisplayKind::Orm, DisplayKind::Height, DisplayKind::Normal] {
                 let expected = tile_bytes(&cpu, &baked, kind, 0, 0);
                 let texture = gpu.renderer.display_textures()[0][kind as usize];
+                eprintln!("GPU probe readback {kind:?}");
                 let (_, _, actual) = Readback::blocking_level(&gpu.device, &gpu.queue, texture, 0).unwrap();
                 assert_eq!(actual.len(), expected.len());
                 if kind.bytes_per_texel() == 8 {
@@ -3875,7 +3879,9 @@ mod procedural_tests {
             let mut mask = CompositeProgram::try_compile_mask_preview(&project, &pixels, 0, owner, None, None).unwrap();
             mask.set_tile_images(&images);
             mask.set_surface_inputs(&mesh, &gbuf, Some(&baked)).unwrap();
+            eprintln!("GPU probe start mask composition");
             gpu.renderer.composite_on_gpu(&gpu.device, &gpu.queue, 0, &mask).unwrap();
+            eprintln!("GPU probe mask composition returned");
             let texture = gpu.renderer.aux_texture(0).unwrap();
             let (_, _, actual) = Readback::blocking(&gpu.device, &gpu.queue, texture).unwrap();
             assert_eq!(actual.len(), expected.len() * 4);

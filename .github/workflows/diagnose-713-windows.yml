@@ -14,4 +14,4 @@ jobs:
       os: '["windows-latest"]'
       tools: ""
       craft-fonts-ref: aced4137c022f1f587624d48e81ec77e1914a9cc
-      command: cargo test --locked -p texturecraft-render --lib -- --test-threads=1 --nocapture
+      command: pwsh -NoProfile -File .github/workflows/diagnose-713-windows.ps1
