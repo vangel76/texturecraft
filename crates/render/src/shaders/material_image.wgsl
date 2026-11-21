@@ -33,7 +33,14 @@ fn material_image_at(image: u32, uv: vec2<f32>) -> vec4<f32> {
     let floor_grid = floor(grid);
     // Wrap the base coordinate once, then wrap its immediate neighbor at the
     // edge. This avoids integer division per bilinear tap on DX12.
-    let wrapped = floor_grid % dimensions;
+    var wrapped = floor_grid % dimensions;
+    if any(abs(floor_grid) >= vec2(16777216.0)) {
+        // Split large coordinates so the remainder preserves integer texels
+        // even when the backend implements it as a multiply and subtract.
+        let high = floor(floor_grid * (1.0 / 256.0));
+        let low = floor_grid - high * 256.0;
+        wrapped = ((high % dimensions) * 256.0 + low) % dimensions;
+    }
     let at = vec2<i32>(select(wrapped, wrapped + dimensions, wrapped < vec2(0.0)));
     let next = select(at + 1, vec2(0), at + 1 == size);
     let f = grid - floor_grid;
@@ -66,38 +73,51 @@ fn image_projection(layer: Operation, uv: vec2<f32>, surface: Surface) -> vec4<f
     let image = layer.ids.z;
     let mode = layer.procedural.w;
     let p = surface.position * layer.projection.w + layer.projection.xyz;
-    if mode == 1u {
-        let weights = pow(abs(surface.normal), vec3(layer.balance.w));
-        let w = weights / max(weights.x + weights.y + weights.z, 1e-6);
-        var sampled = vec4(0.0);
-        if w.x > 0.0 { sampled += w.x * material_image_at(image, vec2(p.z, -p.y)); }
-        if w.y > 0.0 { sampled += w.y * material_image_at(image, p.xz); }
-        if w.z > 0.0 { sampled += w.z * material_image_at(image, vec2(p.x, -p.y)); }
-        return sampled;
-    }
     var point = uv;
-    switch mode {
-        case 2u: { point = vec2(p.z, -p.y) * 0.5 + 0.5; }
-        case 3u: { point = p.xz * 0.5 + 0.5; }
-        case 4u: { point = vec2(p.x, -p.y) * 0.5 + 0.5; }
-        case 5u: {
-            var dir = vec3(0.0, 1.0, 0.0);
-            if dot(surface.position, surface.position) > 0.0 { dir = normalize(surface.position); }
-            point = vec2(azimuth(dir.z, dir.x), acos(clamp(dir.y, -1.0, 1.0)) / 3.141592654) * layer.projection.w;
-        }
-        case 6u, 7u, 8u: {
-            let pos = surface.position;
-            let axis = select(select(pos.xyz, pos.yxz, mode == 6u), pos.xzy, mode == 8u);
-            point = vec2(azimuth(axis.z, axis.x), 0.5 - axis.y * 0.5) * layer.projection.w;
-        }
-        case DECAL_PROJECTION: {}
-        default: {
-            let rotation = layer.projection.xy;
-            let rotated = vec2(uv.x * rotation.x - uv.y * rotation.y, uv.x * rotation.y + uv.y * rotation.x);
-            point = rotated * layer.projection.zw + layer.uv.xy;
+    var weights = vec3(1.0, 0.0, 0.0);
+    if mode == 1u {
+        let raw = pow(abs(surface.normal), vec3(layer.balance.w));
+        weights = raw / max(raw.x + raw.y + raw.z, 1e-6);
+        point = vec2(p.z, -p.y);
+    } else {
+        switch mode {
+            case 2u: { point = vec2(p.z, -p.y) * 0.5 + 0.5; }
+            case 3u: { point = p.xz * 0.5 + 0.5; }
+            case 4u: { point = vec2(p.x, -p.y) * 0.5 + 0.5; }
+            case 5u: {
+                var dir = vec3(0.0, 1.0, 0.0);
+                if dot(surface.position, surface.position) > 0.0 { dir = normalize(surface.position); }
+                point = vec2(azimuth(dir.z, dir.x), acos(clamp(dir.y, -1.0, 1.0)) / 3.141592654) * layer.projection.w;
+            }
+            case 6u, 7u, 8u: {
+                let pos = surface.position;
+                let axis = select(select(pos.xyz, pos.yxz, mode == 6u), pos.xzy, mode == 8u);
+                point = vec2(azimuth(axis.z, axis.x), 0.5 - axis.y * 0.5) * layer.projection.w;
+            }
+            case DECAL_PROJECTION: {}
+            default: {
+                let rotation = layer.projection.xy;
+                let rotated = vec2(uv.x * rotation.x - uv.y * rotation.y, uv.x * rotation.y + uv.y * rotation.x);
+                point = rotated * layer.projection.zw + layer.uv.xy;
+            }
         }
     }
-    return material_image_at(image, point);
+    // A single sampling site keeps the bilinear sampler from being inlined
+    // separately for every projection axis by the Direct3D compiler.
+    var sampled = vec4(0.0);
+    for (var plane = 0u; plane < select(1u, 3u, mode == 1u); plane++) {
+        var uv_at = point;
+        var weight = weights.x;
+        switch plane {
+            case 1u: { uv_at = p.xz; weight = weights.y; }
+            case 2u: { uv_at = vec2(p.x, -p.y); weight = weights.z; }
+            default: {}
+        }
+        if weight > 0.0 {
+            sampled += weight * material_image_at(image, uv_at);
+        }
+    }
+    return sampled;
 }
 
 fn decal_vector(word: u32) -> vec3<f32> {
