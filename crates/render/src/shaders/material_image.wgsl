@@ -7,8 +7,7 @@ fn image_plane_at(plane: u32, pixel: vec2<i32>) -> u32 {
     return textureLoad(tile_images, origin + pixel, i32(srgb[plane + 2u]), 0).x;
 }
 
-fn material_image_texel(image: u32, pixel: vec2<i32>, size: vec2<i32>) -> vec4<f32> {
-    let at = vec2(wrap_coordinate(pixel.x, size.x), wrap_coordinate(pixel.y, size.y));
+fn material_image_texel(image: u32, at: vec2<i32>) -> vec4<f32> {
     let planes = image + 3u;
     let first = image_plane_at(planes, at);
     switch srgb[image + 2u] & 255u {
@@ -23,21 +22,25 @@ fn material_image_texel(image: u32, pixel: vec2<i32>, size: vec2<i32>) -> vec4<f
 // Match ImageRes::sample: wrap and bilinearly mix the file's encoded samples.
 fn material_image_at(image: u32, uv: vec2<f32>) -> vec4<f32> {
     let size = vec2<i32>(i32(srgb[image]), i32(srgb[image + 1u]));
-    let grid = uv * vec2<f32>(size) - 0.5;
+    if any(size <= vec2(0)) {
+        return vec4(0.0);
+    }
+    let dimensions = vec2<f32>(size);
+    let grid = uv * dimensions - 0.5;
     if !all(abs(grid) <= vec2(3.402823466e38)) {
         return vec4(0.0);
     }
     let floor_grid = floor(grid);
-    var base_grid = floor_grid;
-    if any(abs(base_grid) >= vec2(2147483520.0)) {
-        base_grid = base_grid % vec2<f32>(size);
-    }
-    let at = vec2<i32>(base_grid);
+    // Wrap the base coordinate once, then wrap its immediate neighbor at the
+    // edge. This avoids integer division per bilinear tap on DX12.
+    let wrapped = floor_grid % dimensions;
+    let at = vec2<i32>(select(wrapped, wrapped + dimensions, wrapped < vec2(0.0)));
+    let next = select(at + 1, vec2(0), at + 1 == size);
     let f = grid - floor_grid;
-    let a = material_image_texel(image, at, size);
-    let b = material_image_texel(image, at + vec2(1, 0), size);
-    let c = material_image_texel(image, at + vec2(0, 1), size);
-    let d = material_image_texel(image, at + vec2(1, 1), size);
+    let a = material_image_texel(image, at);
+    let b = material_image_texel(image, vec2(next.x, at.y));
+    let c = material_image_texel(image, vec2(at.x, next.y));
+    let d = material_image_texel(image, next);
     let top = a + (b - a) * f.x;
     let bottom = c + (d - c) * f.x;
     return top + (bottom - top) * f.y;

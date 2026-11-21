@@ -48,7 +48,13 @@ fn save_group_parent(depth: u32, index: u32, mask: f32, parent: MaterialValues) 
 }
 
 fn mix_group_parent(depth: u32, index: u32, weights: u32, inner: MaterialValues) -> MaterialValues {
-    var result = inner;
+    var base = inner.base;
+    var normal = inner.normal;
+    // FXC can index local arrays at runtime, but cannot write to a dynamic
+    // index into an array field of a local struct.
+    var scalars = inner.scalars;
+    var lobe_colors = inner.lobe_colors;
+    var lobe_values = inner.lobe_values;
     let mask = bitcast<f32>(output[group_word(depth, 0u, index)]);
     var channels = params.filter_stage.w;
     var word = 1u;
@@ -66,16 +72,16 @@ fn mix_group_parent(depth: u32, index: u32, weights: u32, inner: MaterialValues)
         }
         let color = outer + (material_value(inner, slot) - outer) * weight;
         if slot == 0u {
-            result.base = color;
+            base = color;
         } else if slot == 7u {
-            result.normal = color;
+            normal = color;
         } else if slot >= 12u {
-            result.lobe_values[slot - 12u] = color.x;
+            lobe_values[slot - 12u] = color.x;
         } else if slot >= 8u {
-            result.lobe_colors[slot - 8u] = color;
+            lobe_colors[slot - 8u] = color;
         } else {
-            result.scalars[slot - 1u] = color.x;
+            scalars[slot - 1u] = color.x;
         }
     }
-    return result;
+    return MaterialValues(base, normal, scalars, lobe_colors, lobe_values);
 }
