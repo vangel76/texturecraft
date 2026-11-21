@@ -2140,10 +2140,14 @@ impl GpuCompositor {
         });
         let max_words = MAX_PAINT_WORDS.min((limits.max_storage_buffer_binding_size.min(limits.max_buffer_size) / 4) as usize);
         let windows = paint_windows(program, region, source_size, shift, halo, max_words)?;
-        eprintln!("GPU probe submitting input uploads alone");
-        let uploaded = queue.submit([]);
-        device.poll(wgpu::PollType::Wait { submission_index: Some(uploaded), timeout: None }).map_err(|e| e.to_string())?;
-        eprintln!("GPU probe input uploads finished");
+        let split = std::env::var("TC_GPU_PROBE_SUBMISSIONS").is_ok_and(|mode| mode == "split");
+        eprintln!("GPU probe submissions: {}", if split { "split" } else { "combined" });
+        if split {
+            eprintln!("GPU probe submitting input uploads alone");
+            let uploaded = queue.submit([]);
+            device.poll(wgpu::PollType::Wait { submission_index: Some(uploaded), timeout: None }).map_err(|e| e.to_string())?;
+            eprintln!("GPU probe input uploads finished");
+        }
         let mut packed = Vec::new();
         let mut pending_bytes = 0;
         let mut last_submission = None;
@@ -2340,11 +2344,13 @@ impl GpuCompositor {
                     pass.set_bind_group(0, &bindings, &[]);
                     pass.dispatch_workgroups(width.div_ceil(WORKGROUP), rows.div_ceil(WORKGROUP), 1);
                 }
-                eprintln!("GPU probe submitting compute without display copies");
-                let compute = std::mem::replace(&mut encoder, make_encoder());
-                let computed = queue.submit([compute.finish()]);
-                device.poll(wgpu::PollType::Wait { submission_index: Some(computed), timeout: None }).map_err(|e| e.to_string())?;
-                eprintln!("GPU probe compute finished");
+                if split {
+                    eprintln!("GPU probe submitting compute without display copies");
+                    let compute = std::mem::replace(&mut encoder, make_encoder());
+                    let computed = queue.submit([compute.finish()]);
+                    device.poll(wgpu::PollType::Wait { submission_index: Some(computed), timeout: None }).map_err(|e| e.to_string())?;
+                    eprintln!("GPU probe compute finished");
+                }
                 for (texture, copy) in textures.iter().copied().zip(copies) {
                     let Some((offset, bytes_per_texel)) = copy else { continue };
                     encoder.copy_buffer_to_texture(
@@ -2361,7 +2367,7 @@ impl GpuCompositor {
                 work = work.saturating_add(band_work);
             }
             if let Some(written) = bounds {
-                eprintln!("GPU probe submit display copies");
+                eprintln!("GPU probe submit encoded commands");
                 last_submission = Some(submit(encoder, written, submitted));
                 eprintln!("GPU probe display submission returned");
             }
