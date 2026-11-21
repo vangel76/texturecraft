@@ -1,0 +1,17 @@
+name: Diagnose TextureCraft #713 on Windows
+
+on:
+  push:
+    branches: [diagnose/713-windows-renderer]
+
+permissions:
+  contents: read
+
+jobs:
+  renderer:
+    uses: storytold/craft-common-actions/.github/workflows/gate.yml@main
+    with:
+      os: '["windows-latest"]'
+      tools: ""
+      craft-fonts-ref: aced4137c022f1f587624d48e81ec77e1914a9cc
+      command: cargo test --locked -p texturecraft-render --lib -- --test-threads=1 --nocapture
