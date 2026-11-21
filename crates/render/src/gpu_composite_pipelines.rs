@@ -1,10 +1,12 @@
-use std::collections::BTreeMap;
+use std::{borrow::Cow, collections::BTreeMap};
 
 use super::{ANCHOR_PUBLISH_LAYER, ANCHOR_SOURCE, COLOR_SELECTION_OPCODE, CompositeProgram, FIRST_EXTENDED_PATTERN, FIRST_GENERATOR, TILE_GENERATOR_OPCODE};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 struct Features {
     patterns: bool,
+    // Zero selects the generic pattern shader on other backends.
+    pattern_cases: u128,
     tile_generator: bool,
     authored_images: bool,
     generators: bool,
@@ -20,7 +22,7 @@ struct Features {
 }
 
 impl Features {
-    fn of(program: &CompositeProgram) -> Self {
+    fn of(program: &CompositeProgram, specialize_patterns: bool) -> Self {
         let mut features = Self { authored_images: !program.material_images.is_empty(), spatial: !program.filters.stages.is_empty(), ..Self::default() };
         features.material_anchors = program.filters.stages.iter().any(|stage| stage.anchor.is_some());
         for op in program.operations.iter().take(program.layer_count as usize).filter(|op| op.ids[1] != ANCHOR_PUBLISH_LAYER) {
@@ -34,7 +36,12 @@ impl Features {
             let kind = op.ids[1];
             features.anchors |= kind == ANCHOR_SOURCE;
             features.color_selection |= kind == COLOR_SELECTION_OPCODE;
-            features.patterns |= matches!(kind, 1..=9 | 11..=13 | FIRST_EXTENDED_PATTERN..=TILE_GENERATOR_OPCODE);
+            if matches!(kind, 1..=9 | 11..=13 | FIRST_EXTENDED_PATTERN..=TILE_GENERATOR_OPCODE) {
+                features.patterns = true;
+                if specialize_patterns {
+                    features.pattern_cases |= 1u128.checked_shl(kind).unwrap_or(u128::MAX);
+                }
+            }
             features.tile_generator |= kind == TILE_GENERATOR_OPCODE;
             if (FIRST_GENERATOR..FIRST_EXTENDED_PATTERN).contains(&kind) {
                 features.generators = true;
@@ -48,9 +55,12 @@ impl Features {
     }
 
     fn source(self, supports_curvature: bool, supports_id: bool) -> String {
-        fn include(enabled: bool, full: &'static str, stub: &'static str) -> &'static str {
+        fn include<'a>(enabled: bool, full: &'a str, stub: &'a str) -> &'a str {
             if enabled { full } else { stub }
         }
+
+        let extra = pattern_source(include_str!("shaders/procedural_extra.wgsl"), self.pattern_cases);
+        let patterns = pattern_source(include_str!("shaders/composite_patterns.wgsl"), self.pattern_cases);
 
         // Naga substitutes overrides on GL, but still emits the inactive
         // function bodies. Omit those helpers so Mesa does not inline them
@@ -58,7 +68,7 @@ impl Features {
         [
             "override enable_authored_images: bool = false;\n             override enable_generators: bool = false;\n             override enable_curvature_detail: bool = false;\n             override enable_spatial_fields: bool = false;\n             override enable_anchor_reads: bool = false;",
             include_str!("shaders/noise.wgsl"),
-            include(self.patterns, include_str!("shaders/procedural_extra.wgsl"), ""),
+            include(self.patterns, extra.as_ref(), ""),
             include(
                 self.tile_generator,
                 include_str!("shaders/tile_generator.wgsl"),
@@ -66,7 +76,7 @@ impl Features {
             ),
             include(
                 self.patterns,
-                include_str!("shaders/composite_patterns.wgsl"),
+                patterns.as_ref(),
                 "fn procedural_value(layer: Operation, uv: vec2<f32>, surface: Surface) -> vec3<f32> { return layer.low.rgb; }",
             ),
             include(
@@ -146,21 +156,67 @@ impl Features {
     }
 }
 
+fn pattern_source(source: &'static str, cases: u128) -> Cow<'static, str> {
+    if cases == 0 || cases == u128::MAX {
+        return Cow::Borrowed(source);
+    }
+    // FXC inlines each pattern into the compositor's sampling loops. Keep only
+    // the switch arms referenced by this program before handing it to the
+    // compiler. The fallback arm is needed for the gradient.
+    fn retain_cases(source: &str, cases: u128) -> Option<String> {
+        const SWITCH: &str = "    switch kind {\n";
+        const CASE: &str = "        case ";
+        const DEFAULT: &str = "        default:";
+        let (head, switch) = source.split_once(SWITCH)?;
+        let (arms, tail) = switch.split_once(DEFAULT)?;
+        let mut selected = String::with_capacity(source.len());
+        selected.push_str(head);
+        selected.push_str(SWITCH);
+        for arm in arms.strip_prefix(CASE)?.split("\n        case ") {
+            let (opcode, _) = arm.split_once("u:")?;
+            let opcode = opcode.parse().ok()?;
+            if arm.lines().skip(1).any(|line| line.trim_start().starts_with("case ")) {
+                return None;
+            }
+            if cases & 1u128.checked_shl(opcode)? != 0 {
+                selected.push_str(CASE);
+                selected.push_str(arm.trim_end());
+                selected.push('\n');
+            }
+        }
+        selected.push_str(DEFAULT);
+        selected.push_str(tail);
+        Some(selected)
+    }
+
+    // If the switch format changes, keep all functionality and let the
+    // compiler process the original source.
+    retain_cases(source, cases).map_or(Cow::Borrowed(source), Cow::Owned)
+}
+
+// Limit the number of DX12 pattern combinations retained across project and
+// material edits. Ordinary pipeline variants keep their existing lifetime.
+const MAX_PATTERN_VARIANTS: usize = 64;
+
 struct Variants {
     module: wgpu::ShaderModule,
     render: [Option<wgpu::ComputePipeline>; 2],
     prepare: [Option<wgpu::ComputePipeline>; 2],
+    last_used: u64,
 }
 
 pub(super) struct CompositePipelines {
     supports_curvature: bool,
     supports_id: bool,
+    specialize_patterns: bool,
     variants: BTreeMap<Features, Variants>,
+    dispatches: u64,
 }
 
 impl CompositePipelines {
-    pub(super) fn new(supports_curvature: bool, supports_id: bool) -> Self {
-        Self { supports_curvature, supports_id, variants: BTreeMap::new() }
+    pub(super) fn new(device: &wgpu::Device, supports_curvature: bool, supports_id: bool) -> Self {
+        let specialize_patterns = device.adapter_info().backend == wgpu::Backend::Dx12;
+        Self { supports_curvature, supports_id, specialize_patterns, variants: BTreeMap::new(), dispatches: 0 }
     }
 
     pub(super) fn get(
@@ -169,7 +225,15 @@ impl CompositePipelines {
         layout: &wgpu::PipelineLayout,
         program: &CompositeProgram,
     ) -> (wgpu::ComputePipeline, Option<wgpu::ComputePipeline>) {
-        let features = Features::of(program);
+        let features = Features::of(program, self.specialize_patterns);
+        if features.pattern_cases != 0
+            && !self.variants.contains_key(&features)
+            && self.variants.keys().filter(|variant| variant.pattern_cases != 0).count() >= MAX_PATTERN_VARIANTS
+            && let Some((&oldest, _)) = self.variants.iter().filter(|(variant, _)| variant.pattern_cases != 0).min_by_key(|(_, variants)| variants.last_used)
+        {
+            self.variants.remove(&oldest);
+        }
+        self.dispatches = self.dispatches.saturating_add(1);
         let supports_curvature = self.supports_curvature;
         let supports_id = self.supports_id;
         let variants = self.variants.entry(features).or_insert_with(|| Variants {
@@ -179,7 +243,9 @@ impl CompositePipelines {
             }),
             render: [None, None],
             prepare: [None, None],
+            last_used: self.dispatches,
         });
+        variants.last_used = self.dispatches;
         let module = &variants.module;
         let pipeline = |entry, label, grouped| {
             eprintln!("GPU probe create pipeline {label}, grouped={grouped}, features={features:?}");

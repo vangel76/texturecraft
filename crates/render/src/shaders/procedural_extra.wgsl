@@ -583,6 +583,7 @@ fn periodic_pattern(kind: u32, p: vec3<f32>, seed: u32) -> f32 {
         case 76u: { return slub_silk(uv, seed); }
         case 77u: { return strip_flooring(uv, seed); }
         case 78u: { return knotty_wood(uv, seed); }
-        default: { return uv.x; }
+        default: {}
     }
+    return uv.x;
 }
