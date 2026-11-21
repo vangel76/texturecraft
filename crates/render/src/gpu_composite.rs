@@ -3790,7 +3790,7 @@ mod procedural_tests {
         use texturecraft_core::{Decal, DecalFlip, DecalSymmetry};
 
         const SIZE: u32 = TILE;
-        let Ok(mut gpu) = Headless::new() else { return };
+        let mut gpu = Headless::new().expect("a Direct3D adapter is required for this diagnostic");
         gpu.renderer.set_texture_sets(&gpu.device, &gpu.queue, &[((SIZE, SIZE), 0)], 1);
         let mut mesh = primitives::plane(1.0, 1);
         mesh.normals.fill(Vec3::new(0.3, 0.9, -0.2).normalize());
@@ -3886,7 +3886,13 @@ mod procedural_tests {
                         assert!((actual - expected).abs() <= 0.003, "{projection:?} {kind:?}: GPU {actual} vs CPU {expected}");
                     }
                 } else {
-                    assert!(actual.iter().zip(expected).all(|(a, b)| a.abs_diff(b) <= 2), "{projection:?} {kind:?}");
+                    let failures: Vec<_> = actual.iter().copied().zip(expected).enumerate().filter(|(_, (gpu, cpu))| gpu.abs_diff(*cpu) > 2).collect();
+                    assert!(
+                        failures.is_empty(),
+                        "{projection:?} {kind:?}: {} mismatched bytes (index, (GPU, CPU)), first {:?}",
+                        failures.len(),
+                        &failures[..failures.len().min(8)]
+                    );
                 }
             }
             let expected = mask_image(&inputs, owner, SIZE).unwrap();
