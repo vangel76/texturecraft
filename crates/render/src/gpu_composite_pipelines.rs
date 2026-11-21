@@ -9,6 +9,8 @@ struct Features {
     pattern_cases: u128,
     tile_generator: bool,
     authored_images: bool,
+    mask_preview: bool,
+    extended_blend_modes: bool,
     generators: bool,
     curvature: bool,
     sampled_generator_inputs: bool,
@@ -23,7 +25,12 @@ struct Features {
 
 impl Features {
     fn of(program: &CompositeProgram, specialize_patterns: bool) -> Self {
-        let mut features = Self { authored_images: !program.material_images.is_empty(), spatial: !program.filters.stages.is_empty(), ..Self::default() };
+        let mut features = Self {
+            authored_images: !program.material_images.is_empty(),
+            mask_preview: program.is_mask_preview(),
+            spatial: !program.filters.stages.is_empty(),
+            ..Self::default()
+        };
         features.material_anchors = program.filters.stages.iter().any(|stage| stage.anchor.is_some());
         for op in program.operations.iter().take(program.layer_count as usize).filter(|op| op.ids[1] != ANCHOR_PUBLISH_LAYER) {
             features.mask_effects |= op.effects[1] != 0;
@@ -34,6 +41,7 @@ impl Features {
         // generator overrides and fills in the mask preview.
         for op in &program.operations {
             let kind = op.ids[1];
+            features.extended_blend_modes |= op.balance[2] > 8.0;
             features.anchors |= kind == ANCHOR_SOURCE;
             features.color_selection |= kind == COLOR_SELECTION_OPCODE;
             if matches!(kind, 1..=9 | 11..=13 | FIRST_EXTENDED_PATTERN..=TILE_GENERATOR_OPCODE) {
@@ -144,7 +152,7 @@ impl Features {
         .join("\n")
     }
 
-    fn constants(self, grouped: bool) -> [(&'static str, f64); 6] {
+    fn constants(self, grouped: bool) -> [(&'static str, f64); 8] {
         [
             ("enable_authored_images", f64::from(u8::from(self.authored_images))),
             ("enable_generators", f64::from(u8::from(self.generators))),
@@ -152,6 +160,8 @@ impl Features {
             ("enable_spatial_fields", f64::from(u8::from(self.spatial))),
             ("enable_anchor_reads", f64::from(u8::from(self.anchors))),
             ("composite_groups", f64::from(u8::from(grouped))),
+            ("composite_mask_preview", f64::from(u8::from(self.mask_preview))),
+            ("enable_extended_blend_modes", f64::from(u8::from(self.extended_blend_modes))),
         ]
     }
 }
@@ -249,6 +259,8 @@ impl CompositePipelines {
         let module = &variants.module;
         let pipeline = |entry, label, grouped| {
             eprintln!("GPU probe create pipeline {label}, grouped={grouped}, features={features:?}");
+            #[cfg(not(target_arch = "wasm32"))]
+            let started = std::time::Instant::now();
             let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                 label: Some(label),
                 layout: Some(layout),
@@ -257,7 +269,8 @@ impl CompositePipelines {
                 compilation_options: wgpu::PipelineCompilationOptions { constants: &features.constants(grouped), ..Default::default() },
                 cache: None,
             });
-            eprintln!("GPU probe pipeline {label} returned");
+            #[cfg(not(target_arch = "wasm32"))]
+            eprintln!("GPU probe pipeline {label} returned in {:.1} ms ({:?})", started.elapsed().as_secs_f64() * 1000.0, device.adapter_info().backend);
             pipeline
         };
         let grouped = program.groups.depth != 0;
