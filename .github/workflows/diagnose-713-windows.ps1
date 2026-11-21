@@ -17,9 +17,5 @@ if ($baseline -ne 0) {
         Where-Object { $_.Message -like '*texturecraft_render*' } | Select-Object -First 1
     if ($event) { Write-Host $event.Message }
 
-    Write-Host 'Retry with shader optimization enabled and validation kept'
-    $env:WGPU_DEBUG = '0'
-    & $exe $case --exact --test-threads=1 --nocapture
-    Write-Host "Optimized shader flags exited with $LASTEXITCODE"
 }
 exit $baseline
