@@ -1,4 +1,4 @@
-name: Build the TextureCraft #713 Direct3D hardware probe
+name: Verify the full TextureCraft #713 Windows gate with DXC
 
 on:
   push:
@@ -14,6 +14,4 @@ jobs:
       os: '["windows-latest"]'
       tools: ""
       craft-fonts-ref: aced4137c022f1f587624d48e81ec77e1914a9cc
-      command: pwsh -NoProfile -File .github/workflows/diagnose-713-hardware.ps1
-      artifact-name: TextureCraft-713-Direct3D-Test
-      artifact-path: diagnostic-artifact/*
+      command: pwsh -NoProfile -File .github/workflows/diagnose-713-dxc-gate.ps1

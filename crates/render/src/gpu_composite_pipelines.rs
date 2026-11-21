@@ -248,17 +248,14 @@ impl CompositePipelines {
         variants.last_used = self.dispatches;
         let module = &variants.module;
         let pipeline = |entry, label, grouped| {
-            eprintln!("GPU probe create pipeline {label}, grouped={grouped}, features={features:?}");
-            let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                 label: Some(label),
                 layout: Some(layout),
                 module,
                 entry_point: Some(entry),
                 compilation_options: wgpu::PipelineCompilationOptions { constants: &features.constants(grouped), ..Default::default() },
                 cache: None,
-            });
-            eprintln!("GPU probe pipeline {label} returned");
-            pipeline
+            })
         };
         let grouped = program.groups.depth != 0;
         let render = variants.render[usize::from(grouped)].get_or_insert_with(|| pipeline("compose", "tc_gpu_composite", grouped)).clone();

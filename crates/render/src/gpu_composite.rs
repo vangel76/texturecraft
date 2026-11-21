@@ -2028,7 +2028,6 @@ impl GpuCompositor {
             self.filter_gpu.get_or_insert_with(|| NeighbourhoodGpu::new(device));
         }
         let (pipeline, prepare) = self.pipelines.get(device, &self.pipeline_layout, program);
-        eprintln!("GPU probe building composition inputs");
         let coverage = self.coverage_buffer(device, program.coverage.as_ref().map(|(map, _)| map))?;
         let (surface, vertices) = self.surface_inputs(device, queue, program)?;
         let baked = self.baked_input(device, queue, ts, program.baked.as_ref())?;
@@ -2078,9 +2077,7 @@ impl GpuCompositor {
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
             mapped_at_creation: false,
         });
-        eprintln!("GPU probe creating tile atlas");
         let atlas = self.tile_atlas(device, queue, ts, program)?;
-        eprintln!("GPU probe tile atlas uploaded");
         let tile_images = atlas.map(|atlas| atlas.view.clone());
         let (operations, lookup) =
             if program.tile_patterns.is_empty() && program.ramp_words.is_empty() && program.geometry.words.is_empty() && program.material_images.is_empty() {
@@ -2140,14 +2137,6 @@ impl GpuCompositor {
         });
         let max_words = MAX_PAINT_WORDS.min((limits.max_storage_buffer_binding_size.min(limits.max_buffer_size) / 4) as usize);
         let windows = paint_windows(program, region, source_size, shift, halo, max_words)?;
-        let split = std::env::var("TC_GPU_PROBE_SUBMISSIONS").is_ok_and(|mode| mode == "split");
-        eprintln!("GPU probe submissions: {}", if split { "split" } else { "combined" });
-        if split {
-            eprintln!("GPU probe submitting input uploads alone");
-            let uploaded = queue.submit([]);
-            device.poll(wgpu::PollType::Wait { submission_index: Some(uploaded), timeout: None }).map_err(|e| e.to_string())?;
-            eprintln!("GPU probe input uploads finished");
-        }
         let mut packed = Vec::new();
         let mut pending_bytes = 0;
         let mut last_submission = None;
@@ -2344,13 +2333,6 @@ impl GpuCompositor {
                     pass.set_bind_group(0, &bindings, &[]);
                     pass.dispatch_workgroups(width.div_ceil(WORKGROUP), rows.div_ceil(WORKGROUP), 1);
                 }
-                if split {
-                    eprintln!("GPU probe submitting compute without display copies");
-                    let compute = std::mem::replace(&mut encoder, make_encoder());
-                    let computed = queue.submit([compute.finish()]);
-                    device.poll(wgpu::PollType::Wait { submission_index: Some(computed), timeout: None }).map_err(|e| e.to_string())?;
-                    eprintln!("GPU probe compute finished");
-                }
                 for (texture, copy) in textures.iter().copied().zip(copies) {
                     let Some((offset, bytes_per_texel)) = copy else { continue };
                     encoder.copy_buffer_to_texture(
@@ -2367,9 +2349,7 @@ impl GpuCompositor {
                 work = work.saturating_add(band_work);
             }
             if let Some(written) = bounds {
-                eprintln!("GPU probe submit encoded commands");
                 last_submission = Some(submit(encoder, written, submitted));
-                eprintln!("GPU probe display submission returned");
             }
             pending_bytes += bytes;
         }
@@ -3796,7 +3776,7 @@ mod procedural_tests {
         use texturecraft_core::{Decal, DecalFlip, DecalSymmetry};
 
         const SIZE: u32 = TILE;
-        let mut gpu = Headless::new().expect("a Direct3D adapter is required for this diagnostic");
+        let Ok(mut gpu) = Headless::new() else { return };
         gpu.renderer.set_texture_sets(&gpu.device, &gpu.queue, &[((SIZE, SIZE), 0)], 1);
         let mut mesh = primitives::plane(1.0, 1);
         mesh.normals.fill(Vec3::new(0.3, 0.9, -0.2).normalize());
@@ -3837,7 +3817,6 @@ mod procedural_tests {
         ];
         let channels = [Channel::BaseColor, Channel::Roughness, Channel::Height, Channel::Normal];
         for projection in projections {
-            eprintln!("GPU probe projection {projection:?}");
             let mut project = Project::new("Image source parity", "builtin:plane");
             project.texture_sets.push(TextureSet::new("Plane", 0, SIZE));
             let fill = Fill {
@@ -3876,13 +3855,10 @@ mod procedural_tests {
             let mut program = CompositeProgram::try_compile_region(&project, &pixels, 0, None).unwrap();
             program.set_tile_images(&images);
             program.set_surface_inputs(&mesh, &gbuf, Some(&baked)).unwrap();
-            eprintln!("GPU probe start material composition");
             gpu.renderer.composite_on_gpu(&gpu.device, &gpu.queue, 0, &program).unwrap();
-            eprintln!("GPU probe material composition returned");
             for kind in [DisplayKind::BaseColor, DisplayKind::Orm, DisplayKind::Height, DisplayKind::Normal] {
                 let expected = tile_bytes(&cpu, &baked, kind, 0, 0);
                 let texture = gpu.renderer.display_textures()[0][kind as usize];
-                eprintln!("GPU probe readback {kind:?}");
                 let (_, _, actual) = Readback::blocking_level(&gpu.device, &gpu.queue, texture, 0).unwrap();
                 assert_eq!(actual.len(), expected.len());
                 if kind.bytes_per_texel() == 8 {
@@ -3892,22 +3868,14 @@ mod procedural_tests {
                         assert!((actual - expected).abs() <= 0.003, "{projection:?} {kind:?}: GPU {actual} vs CPU {expected}");
                     }
                 } else {
-                    let failures: Vec<_> = actual.iter().copied().zip(expected).enumerate().filter(|(_, (gpu, cpu))| gpu.abs_diff(*cpu) > 2).collect();
-                    assert!(
-                        failures.is_empty(),
-                        "{projection:?} {kind:?}: {} mismatched bytes (index, (GPU, CPU)), first {:?}",
-                        failures.len(),
-                        &failures[..failures.len().min(8)]
-                    );
+                    assert!(actual.iter().zip(expected).all(|(a, b)| a.abs_diff(b) <= 2), "{projection:?} {kind:?}");
                 }
             }
             let expected = mask_image(&inputs, owner, SIZE).unwrap();
             let mut mask = CompositeProgram::try_compile_mask_preview(&project, &pixels, 0, owner, None, None).unwrap();
             mask.set_tile_images(&images);
             mask.set_surface_inputs(&mesh, &gbuf, Some(&baked)).unwrap();
-            eprintln!("GPU probe start mask composition");
             gpu.renderer.composite_on_gpu(&gpu.device, &gpu.queue, 0, &mask).unwrap();
-            eprintln!("GPU probe mask composition returned");
             let texture = gpu.renderer.aux_texture(0).unwrap();
             let (_, _, actual) = Readback::blocking(&gpu.device, &gpu.queue, texture).unwrap();
             assert_eq!(actual.len(), expected.len() * 4);
