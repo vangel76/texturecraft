@@ -12,6 +12,8 @@ use texturecraft_engine::core::{Channel, EffectKind, LayerId, Source};
 use texturecraft_engine::geom::primitives;
 use texturecraft_engine::{Session, StackTarget};
 use texturecraft_ui_egui::TextureCraftApp;
+
+use super::layers_panel::click_selected_content_thumbnail;
 use texturecraft_ui_egui::file_dialogs::Answer;
 
 const BLACK: [f32; 3] = [0.0; 3];
@@ -69,7 +71,9 @@ fn effect_harness() -> (Harness<'static, TextureCraftApp>, u64) {
         "effect",
     );
     texturecraft_engine::execute(&mut session, "layer.select", &json!({"layer": layer})).unwrap();
-    (harness_for(session), effect)
+    let mut h = harness_for(session);
+    click_selected_content_thumbnail(&mut h);
+    (h, effect)
 }
 
 /// Choose Rename effect from the row's context menu and type `text` over the old name.
@@ -116,8 +120,22 @@ fn renaming_an_effect_row_undoes_redoes_and_survives_save_and_reopen() {
     let layer = h.state().session.doc.project.effect(LayerId(effect)).unwrap().0;
     h.state_mut().run("layer.select", json!({"layer": layer.0}));
     h.run_steps(3);
+    assert!(h.query_by_label("Pitted rust").is_none(), "the reopened stack starts closed");
+    click_selected_content_thumbnail(&mut h);
     assert!(h.query_by_label("Pitted rust").is_some(), "the reopened stack shows the name");
     std::fs::remove_dir_all(file.parent().unwrap()).unwrap();
+}
+
+#[test]
+fn collapsing_an_effect_stack_finishes_its_rename() {
+    let (mut h, effect) = effect_harness();
+    rename_from_the_menu(&mut h, "Effect A", "Pitted rust");
+    click_selected_content_thumbnail(&mut h);
+    assert!(h.state().ui.rename.is_none(), "the hidden editor has committed the name");
+    assert_eq!(effect_name(&h, effect), "Pitted rust");
+    assert!(h.query_by_label("Pitted rust").is_none(), "the effect stack closed");
+    click_selected_content_thumbnail(&mut h);
+    assert!(h.query_by_label("Pitted rust").is_some());
 }
 
 #[test]

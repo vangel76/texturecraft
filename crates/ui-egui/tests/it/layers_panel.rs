@@ -1,8 +1,8 @@
-//! The Layers panel rows: content and mask thumbnails select their own target, effect groups
-//! fold without touching the document, and the thumbnails arrive from the worker.
+//! The Layers panel rows: thumbnails select and disclose their own effects without editing the
+//! document, and the thumbnail images arrive from the worker.
 
 use egui_kittest::Harness;
-use egui_kittest::kittest::Queryable;
+use egui_kittest::kittest::{NodeT, Queryable};
 use serde_json::{Value, json};
 use texturecraft_engine::compose::ThumbTarget;
 use texturecraft_engine::core::{Channel, LayerId};
@@ -35,11 +35,12 @@ fn thumb(h: &Harness<'_, TextureCraftApp>, name: &str, mask: bool) -> egui::Pos2
     egui::pos2(x, row.center().y)
 }
 
-/// The `label` header that follows the "Masked fill" row (other layers have groups too).
-fn header(h: &mut Harness<'_, TextureCraftApp>, label: &str) {
-    let top = h.get_by_label("Masked fill").rect().top();
-    let at = h.get_all_by_label(label).map(|n| n.rect()).filter(|r| r.top() > top).min_by(|a, b| a.top().total_cmp(&b.top())).unwrap().center();
-    click(h, at);
+/// Toggle the effect rows through the selected layer's content thumbnail.
+pub(super) fn click_selected_content_thumbnail(h: &mut Harness<'_, TextureCraftApp>) {
+    let layer = h.state().session.selected_layer().unwrap();
+    let name = &h.state().session.doc.project.layers[&layer].name;
+    h.get_by_label(&format!("Select the layer content ({name})")).click();
+    h.run_steps(3);
 }
 
 fn click(h: &mut Harness<'_, TextureCraftApp>, at: egui::Pos2) {
@@ -49,35 +50,84 @@ fn click(h: &mut Harness<'_, TextureCraftApp>, at: egui::Pos2) {
 }
 
 #[test]
-fn mask_and_content_thumbnails_select_their_own_target() {
+fn mask_and_content_thumbnails_toggle_their_own_stacks() {
     let (mut h, layer) = harness();
-    let at = thumb(&h, "Masked fill", true);
-    click(&mut h, at);
+    let content = thumb(&h, "Masked fill", false);
+    let mask = thumb(&h, "Masked fill", true);
+    assert!(h.query_by_label("Effect A").is_none() && h.query_by_label("Effect M").is_none(), "stacks start closed");
+
+    click(&mut h, mask);
     assert_eq!(h.state().session.selected_layer(), Some(layer));
-    assert_eq!(h.state().session.target, StackTarget::Mask, "the mask thumbnail routes to the mask");
-    let at = thumb(&h, "Masked fill", false);
-    click(&mut h, at);
-    assert_eq!(h.state().session.target, StackTarget::Content, "the content thumbnail routes back");
-    // Clicking an effect row's name still selects that effect (its right end holds the blend mode and opacity)
+    assert_eq!(h.state().session.target, StackTarget::Mask);
+    assert!(h.query_by_label("Effect M").is_some());
+    click(&mut h, mask);
+    assert!(h.query_by_label("Effect M").is_none(), "the same mask thumbnail closes its stack");
+    click(&mut h, mask);
+    assert!(h.query_by_label("Effect M").is_some());
+
+    click(&mut h, content);
+    assert_eq!(h.state().session.target, StackTarget::Content);
+    assert!(h.query_by_label("Effect M").is_none(), "switching thumbnails closes the mask stack");
+    assert!(h.query_by_label("Effect A").is_some());
+    click(&mut h, content);
+    assert!(h.query_by_label("Effect A").is_none(), "the same content thumbnail closes its stack");
+    click(&mut h, content);
     let row = h.get_by_label("Effect A").rect();
     click(&mut h, row.center());
     assert!(matches!(h.state().session.target, StackTarget::Effect(_)));
+    assert!(h.query_by_label("Effect A").is_some(), "selecting an effect leaves its stack open");
 }
 
 #[test]
-fn folding_an_effect_group_hides_its_rows_without_changing_the_document() {
-    let (mut h, _) = harness();
-    let (project, undo) = (h.state().session.doc.project.clone(), h.state().session.revision);
-    assert!(h.query_by_label("Effect A").is_some() && h.query_by_label("Effect M").is_some());
-    header(&mut h, "Content effects");
-    assert!(h.query_by_label("Effect A").is_none(), "folded content effects are hidden");
-    assert!(h.query_by_label("Effect M").is_some(), "the mask group stays open");
-    header(&mut h, "Mask effects");
-    assert!(h.query_by_label("Effect M").is_none());
-    assert_eq!(h.state().session.doc.project, project);
-    assert_eq!(h.state().session.revision, undo, "folding is not an edit");
-    header(&mut h, "Content effects");
-    assert!(h.query_by_label("Effect A").is_some(), "unfolds again");
+fn keyboard_toggles_effects_without_editing_the_document() {
+    let (mut h, layer) = harness();
+    let session = &h.state().session;
+    let (project, history, modified) = (session.doc.project.clone(), session.history_labels(), session.modified);
+    let content = "Select the layer content (Masked fill)";
+    assert_eq!(h.get_by_label(content).accesskit_node().data().is_expanded(), Some(false));
+
+    // Move focus to the thumbnail and activate it with the standard button keys.
+    h.get_by_label(content).focus();
+    h.run_steps(3);
+    assert!(h.get_by_label(content).is_focused());
+    h.key_press(egui::Key::Enter);
+    h.run_steps(3);
+    assert!(h.query_by_label("Effect A").is_some());
+    h.key_press(egui::Key::Space);
+    h.run_steps(3);
+    assert!(h.query_by_label("Effect A").is_none());
+    assert_eq!(h.get_by_label(content).accesskit_node().data().is_expanded(), Some(false));
+
+    h.key_press(egui::Key::Enter);
+    h.run_steps(3);
+    assert!(h.get_by_label(content).is_focused());
+    assert_eq!(h.get_by_label(content).accesskit_node().data().is_expanded(), Some(true));
+
+    let session = &h.state().session;
+    let empty = session.doc.project.texture_sets[session.ts()]
+        .stack
+        .iter()
+        .rev()
+        .find_map(|id| {
+            let layer = session.doc.project.layers.get(id)?;
+            (layer.mask.is_none() && layer.content_effects.is_empty()).then(|| (*id, layer.name.clone()))
+        })
+        .expect("sample contains an empty paint layer");
+    let empty_thumbnail = format!("Select the layer content ({})", empty.1);
+    h.get_by_label(&empty_thumbnail).focus();
+    h.run_steps(3);
+    assert!(h.get_by_label(&empty_thumbnail).is_focused());
+    h.key_press(egui::Key::Enter);
+    h.run_steps(3);
+    assert_eq!(h.state().session.selected_layer(), Some(empty.0));
+    assert_ne!(empty.0, layer);
+    assert!(h.query_by_label("Effect A").is_none() && h.query_by_label("Effect M").is_none(), "switching layers closes the old stack");
+    assert_eq!(h.get_by_label(&empty_thumbnail).accesskit_node().data().is_expanded(), None);
+
+    let session = &h.state().session;
+    assert_eq!(session.doc.project, project);
+    assert_eq!(session.history_labels(), history);
+    assert_eq!(session.modified, modified);
 }
 
 #[test]
@@ -85,14 +135,15 @@ fn visible_rows_get_their_thumbnails() {
     let (mut h, layer) = harness();
     let content = ThumbTarget::Content { layer, channel: Channel::BaseColor };
     let mask = ThumbTarget::Mask { layer };
+    let effect = h.state().session.doc.project.layers[&layer].content_effects[0].id;
+    let stage = ThumbTarget::Stage { effect, channel: Channel::BaseColor };
+    click_selected_content_thumbnail(&mut h);
     let t0 = std::time::Instant::now();
-    while !(h.state().layer_panel.service().is_fresh(content) && h.state().layer_panel.service().is_fresh(mask)) {
+    while ![content, mask, stage].iter().all(|target| h.state().layer_panel.service().is_fresh(*target)) {
         assert!(t0.elapsed().as_secs() < 60, "thumbnails never arrived");
         h.run_steps(1);
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
-    // Rows, mask, and every effect stage on screen were asked for: well under the cache size.
-    assert!(h.state().layer_panel.service().cached() >= 4);
 }
 
 #[test]
@@ -112,6 +163,9 @@ fn deeply_nested_effect_visibility_is_reachable_in_a_narrow_panel() {
     h.state_mut().ui.dock = Dock::from_value(serde_json::to_value(workspace).unwrap());
     h.run_steps(4);
 
+    h.state_mut().run("layer.select", json!({"layer": layer.0})).unwrap();
+    h.run_steps(3);
+    click_selected_content_thumbnail(&mut h);
     let row = h.get_by_label("Effect A").rect();
     assert!(row.width() < 180.0, "the test must use a compact panel: {row:?}");
     let indent = (row.width() - 7.0 - 22.0 - 21.6 - 8.0 - 20.0 - 6.0).max(0.0);
@@ -287,12 +341,13 @@ const LONG_EFFECT_NAME: &str = "Edge wear from curvature with dirt accumulation"
 fn an_effect_name_cut_short_shows_in_full_on_hover() {
     let mut session = texturecraft_engine::sample_session(256, 64).unwrap();
     let layer = id(execute(&mut session, "layer.add.fill", &json!({"color": "#336699"})).unwrap(), "layer");
-    execute(&mut session, "layer.select", &json!({"layer": layer})).unwrap();
     execute(&mut session, "effect.add.filter", &json!({"target": "content", "filter": "invert", "name": LONG_EFFECT_NAME})).unwrap();
+    execute(&mut session, "layer.select", &json!({"layer": layer})).unwrap();
     let mut h = Harness::builder().with_size(egui::vec2(1280.0, 800.0)).build_eframe(|cc| TextureCraftApp::new(cc, session));
     h.state_mut().ui.prefs.language = "en".into();
     h.run_steps(4);
 
+    click_selected_content_thumbnail(&mut h);
     let row = h.get_by_label(LONG_EFFECT_NAME).rect();
     let before = h.query_all_by_label_contains(LONG_EFFECT_NAME).count();
     h.hover_at(egui::pos2(row.left() + 75.0, row.center().y));
