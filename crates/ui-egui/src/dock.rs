@@ -175,7 +175,7 @@ pub(crate) fn layers(app: &mut TextureCraftApp, ui: &mut Ui) {
             ui.menu_button(RichText::new(ic::MAGIC_WAND).size(14.0), |ui| {
                 let selected = app.session.selected_layer().and_then(|id| app.session.doc.project.layers.get(&id)).cloned();
                 match &selected {
-                    Some(layer) => effect_menu(app, ui, layer),
+                    Some(layer) => effect_menu(app, ui, layer, false),
                     None => {
                         ui.label(RichText::new(tr("Select a layer")).color(tokens.text_dim));
                     }
@@ -292,9 +292,9 @@ pub(crate) fn targets_content(app: &TextureCraftApp) -> bool {
     }
 }
 
-/// "Add effect" items for `layer`: content when it is the selected target, else the mask
-fn effect_menu(app: &mut TextureCraftApp, ui: &mut Ui, layer: &Layer) {
-    let content = !layer.is_group() && app.session.selected_layer() == Some(layer.id) && targets_content(app);
+/// The content thumbnail targets content directly. The row and toolbar follow the selection.
+fn effect_menu(app: &mut TextureCraftApp, ui: &mut Ui, layer: &Layer, content_thumbnail: bool) {
+    let content = content_thumbnail || (!layer.is_group() && app.session.selected_layer() == Some(layer.id) && targets_content(app));
     let target = if content { "content" } else { "mask" };
     ui.label(caption(if content { tr("Add to the layer content") } else { tr("Add to the mask") }));
 
@@ -309,6 +309,9 @@ fn effect_menu(app: &mut TextureCraftApp, ui: &mut Ui, layer: &Layer) {
         (tr("Add anchor point"), "effect.add.anchor", json!({"target": target})),
     ];
     for (label, command, params) in items {
+        if content_thumbnail && matches!(command, "effect.add.generator" | "effect.add.compare") {
+            continue;
+        }
         if !ui.button(label).clicked() {
             continue;
         }
@@ -657,12 +660,14 @@ fn layer_row(app: &mut TextureCraftApp, ui: &mut Ui, layer: &Layer, depth: usize
     if !thumb_box(ui, app, thumbnail, ThumbTarget::Content { layer: layer.id, channel }, !layer.visible) {
         content_glyph(&painter, &tokens, thumbnail, layer);
     }
+    let content_label = tr("Select the layer content");
+    let content_response = ui.interact(thumbnail, ui.scope_id().with(("content", layer.id.0)), Sense::click()).on_hover_text(content_label);
     painter.rect_stroke(thumbnail, THUMBNAIL_ROUNDING, target_stroke(&tokens, content_target), egui::StrokeKind::Outside);
-    let content_response = ui.interact(thumbnail, ui.scope_id().with(("content", layer.id.0)), Sense::click()).on_hover_text(tr("Select the layer content"));
     if content_response.clicked() {
         let modifiers = ui.input(|input| input.modifiers);
         click_layer(app, modifiers, layer.id.0, Some("content"));
     }
+    thumbnail_context_menu(ui, &content_response, content_label, &layer.name, content_target, |ui| layer_context_menu(app, ui, layer, true));
     x = thumbnail.right() + THUMBNAIL_SPACING;
 
     // An instance draws its source's content, blending and (unless it has its own) mask
@@ -696,9 +701,8 @@ fn layer_row(app: &mut TextureCraftApp, ui: &mut Ui, layer: &Layer, depth: usize
         if !mask.enabled {
             painter.line_segment([mask_rect.left_top(), mask_rect.right_bottom()], Stroke::new(HIDDEN_STRIKE_WIDTH, tokens.danger));
         }
-        let mask_response = ui
-            .interact(mask_rect, ui.scope_id().with(("mask", layer.id.0)), Sense::click())
-            .on_hover_text(tr("Select the mask (Alt+click: show it in the viewport)"));
+        let mask_label = tr("Select the mask (Alt+click: show it in the viewport)");
+        let mask_response = ui.interact(mask_rect, ui.scope_id().with(("mask", layer.id.0)), Sense::click()).on_hover_text(mask_label);
         if mask_response.clicked() {
             app.run("layer.select", json!({"layer": layer.id.0, "target": "mask"}));
             if ui.input(|input| input.modifiers.alt) {
@@ -707,6 +711,7 @@ fn layer_row(app: &mut TextureCraftApp, ui: &mut Ui, layer: &Layer, depth: usize
                 app.run("viewport.view", view);
             }
         }
+        thumbnail_context_menu(ui, &mask_response, mask_label, &layer.name, mask_target, |ui| mask_management_menu(app, ui, layer, true));
         if app.session.view == texturecraft_engine::ViewMode::Mask(layer.id) {
             painter.rect_stroke(
                 mask_rect.expand(HIGHLIGHT_OUTSET),
@@ -878,7 +883,25 @@ fn layer_row(app: &mut TextureCraftApp, ui: &mut Ui, layer: &Layer, depth: usize
         }
         Some(Asset::Alpha(_) | Asset::Texture(_)) | None => {}
     }
-    row.context_menu(|ui| layer_context_menu(app, ui, layer));
+    row.context_menu(|ui| layer_context_menu(app, ui, layer, false));
+}
+
+/// Expose the thumbnail as a focusable control and use the same popup for pointer and keyboard.
+fn thumbnail_context_menu(ui: &Ui, response: &egui::Response, label: &str, layer_name: &str, selected: bool, contents: impl FnOnce(&mut Ui)) {
+    response.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, true, selected, format!("{label} ({layer_name})")));
+    ui.ctx().accesskit_node_builder(response.id, |node| node.set_has_popup(egui::accesskit::HasPopup::Menu));
+    let mut popup = egui::Popup::context_menu(response).anchor(response);
+    let return_focus = popup.is_open() && ui.input(|input| input.key_pressed(egui::Key::Escape));
+    if response.has_focus() {
+        ui.painter().rect_stroke(response.rect.shrink(1.0), THUMBNAIL_ROUNDING, ui.visuals().widgets.active.fg_stroke, egui::StrokeKind::Inside);
+        if ui.input_mut(|input| input.consume_key(egui::Modifiers::SHIFT, egui::Key::F10) || input.consume_key(egui::Modifiers::NONE, egui::Key::Menu)) {
+            popup = popup.open_memory(Some(egui::SetOpenCommand::Bool(true)));
+        }
+    }
+    popup.show(contents);
+    if return_focus {
+        response.request_focus();
+    }
 }
 
 /// `params` of a shelf material dropped on the row of `layer`: inside a folder when dropped on its middle, else directly below the row
@@ -1379,14 +1402,14 @@ fn blending_options_menu(app: &mut TextureCraftApp, ui: &mut Ui, layer: &Layer) 
     });
 }
 
-fn layer_context_menu(app: &mut TextureCraftApp, ui: &mut Ui, layer: &Layer) {
+fn layer_context_menu(app: &mut TextureCraftApp, ui: &mut Ui, layer: &Layer, content_thumbnail: bool) {
     let tk = Tokens::get(ui.ctx());
     ui.set_min_width(230.0);
     let lid = layer.id.0;
     let keymap = app.ui.keymap.clone();
 
-    // On one of several selected layers, remove, duplicate and group act on all of them
-    let several = selection_with(app, layer.id);
+    // The row menu can act on several selected layers. A thumbnail identifies one layer.
+    let several = if content_thumbnail { None } else { selection_with(app, layer.id) };
     let run = |app: &mut TextureCraftApp, ui: &mut Ui, label: &str, id: &str, p: Value, enabled: bool| {
         let mut b = egui::Button::new(label);
         if let Some(sc) = crate::keymap::shortcut_of(&keymap, id) {
@@ -1405,29 +1428,12 @@ fn layer_context_menu(app: &mut TextureCraftApp, ui: &mut Ui, layer: &Layer) {
         }
     };
 
-    // An instance edits its source mask until it gets its own
-    let project = &app.session.doc.project;
-    let has_mask = project.layers.get(&project.mask_owner(layer.id)).is_some_and(|l| l.mask.is_some());
-
-    // A switched-off mask has no values to export
-    let mask_on = project.layers.get(&project.mask_owner(layer.id)).is_some_and(|l| l.mask.as_ref().is_some_and(|m| m.enabled));
     run(app, ui, tr("Add white mask"), "mask.add.white", json!({"layer": lid}), layer.mask.is_none());
     run(app, ui, tr("Add black mask"), "mask.add.black", json!({"layer": lid}), layer.mask.is_none());
     run(app, ui, tr("Add mask with color selection"), "mask.add.colorSelection", json!({"layer": lid}), true);
-    ui.separator();
-    run(app, ui, tr("Toggle mask"), "mask.toggle", json!({"layer": lid}), has_mask);
-    run(app, ui, tr("Invert mask background"), "mask.invertBackground", json!({"layer": lid}), has_mask);
-    run(app, ui, tr("Invert mask"), "mask.invert", json!({"layer": lid}), has_mask);
-    run(app, ui, tr("Clear mask"), "mask.clear", json!({"layer": lid}), has_mask);
-    run(app, ui, tr("Remove mask"), "mask.remove", json!({"layer": lid}), has_mask);
-    #[cfg(not(target_arch = "wasm32"))]
-    if ui.add_enabled(mask_on, egui::Button::new(tr("Export mask to file..."))).clicked() {
-        export_mask_file(app, layer);
-        ui.close();
-    }
-    if ui.add_enabled(mask_on, egui::Button::new(tr("Copy mask to clipboard"))).clicked() {
-        copy_mask(app, ui.ctx(), layer.id);
-        ui.close();
+    if !content_thumbnail {
+        ui.separator();
+        mask_management_menu(app, ui, layer, false);
     }
     geometry_mask_menu(app, ui, layer);
     ui.separator();
@@ -1444,19 +1450,20 @@ fn layer_context_menu(app: &mut TextureCraftApp, ui: &mut Ui, layer: &Layer) {
         }
         ui.close();
     }
-    #[cfg(not(target_arch = "wasm32"))]
-    if ui.add_enabled(has_mask, egui::Button::new(tr("Create smart mask"))).clicked() {
-        app.run("layer.select", json!({"layer": lid}));
-        crate::smart_mask_menu::save(app, layer, &crate::library_dir());
-        ui.close();
-    }
     ui.separator();
     run(app, ui, tr("Cut layer(s)"), "layer.cut", json!({"layer": lid}), true);
     run(app, ui, tr("Copy layer(s)"), "layer.copy", json!({"layer": lid}), true);
     let paste_layer = crate::menus::enabled(app, "layer.paste");
-    let paste_effect = texturecraft_engine::effect_clipboard::clipboard_effect(&app.session).is_some();
     run(app, ui, tr("Paste layer(s)"), "layer.paste", json!({}), paste_layer);
-    run(app, ui, tr("Paste effect"), "effect.paste", json!({}), paste_effect);
+    let has_content_stack = app.session.doc.project.content_layer(layer.id).is_some_and(|owner| !owner.is_group());
+    let (params, paste_effect) = if content_thumbnail {
+        let compatible =
+            app.session.clipboard.as_ref().and_then(|(doc, id)| doc.project.effect(*id)).is_some_and(|(_, effect)| effect.kind.content_only() != Some(false));
+        (json!({"layer": lid, "target": "content"}), has_content_stack && compatible)
+    } else {
+        (json!({}), texturecraft_engine::effect_clipboard::clipboard_effect(&app.session).is_some())
+    };
+    run(app, ui, tr("Paste effect"), "effect.paste", params, paste_effect);
     let paste_instance = crate::menus::enabled(app, "layer.pasteInstance");
     run(app, ui, tr("Paste as instance"), "layer.pasteInstance", json!({}), paste_instance);
     run(app, ui, tr("Duplicate layer(s)"), "layer.duplicate", json!({"layer": lid}), true);
@@ -1481,8 +1488,52 @@ fn layer_context_menu(app: &mut TextureCraftApp, ui: &mut Ui, layer: &Layer) {
             }
         }
     });
-    ui.separator();
-    effect_menu(app, ui, layer);
+    if !content_thumbnail || has_content_stack {
+        ui.separator();
+        effect_menu(app, ui, layer, content_thumbnail);
+    }
+}
+
+/// Mask management is available from the row and directly from the mask thumbnail.
+fn mask_management_menu(app: &mut TextureCraftApp, ui: &mut Ui, layer: &Layer, mask_thumbnail: bool) {
+    // An instance inherits its source mask until it has its own.
+    let project = &app.session.doc.project;
+    let mask = project.layers.get(&project.mask_owner(layer.id)).and_then(|owner| owner.mask.as_ref());
+    let (has_mask, mask_on) = (mask.is_some(), mask.is_some_and(|mask| mask.enabled));
+    let lid = layer.id.0;
+    let target = if mask_thumbnail { "mask" } else { "content" };
+    for (label, command) in [
+        (tr("Toggle mask"), "mask.toggle"),
+        (tr("Invert mask background"), "mask.invertBackground"),
+        (tr("Invert mask"), "mask.invert"),
+        (tr("Clear mask"), "mask.clear"),
+        (tr("Remove mask"), "mask.remove"),
+    ] {
+        let mut button = egui::Button::new(label).selected(command == "mask.toggle" && mask_on);
+        if let Some(shortcut) = crate::keymap::shortcut_of(&app.ui.keymap, command) {
+            button = button.shortcut_text(shortcut);
+        }
+        if ui.add_enabled(has_mask, button).clicked() {
+            app.run("layer.select", json!({"layer": lid, "target": target}));
+            app.run(command, json!({"layer": lid}));
+            ui.close();
+        }
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    if ui.add_enabled(has_mask, egui::Button::new(tr("Create smart mask"))).clicked() {
+        app.run("layer.select", json!({"layer": lid, "target": target}));
+        crate::smart_mask_menu::save(app, layer, &crate::library_dir());
+        ui.close();
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    if ui.add_enabled(mask_on, egui::Button::new(tr("Export mask to file..."))).clicked() {
+        export_mask_file(app, layer);
+        ui.close();
+    }
+    if ui.add_enabled(mask_on, egui::Button::new(tr("Copy mask to clipboard"))).clicked() {
+        copy_mask(app, ui.ctx(), layer.id);
+        ui.close();
+    }
 }
 
 // ---------------------------------------------------------------------------------------------

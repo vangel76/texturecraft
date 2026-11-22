@@ -308,6 +308,60 @@ fn right_click(h: &mut Harness<'_, TextureCraftApp>, at: egui::Pos2) {
     h.run_steps(3);
 }
 
+#[test]
+fn thumbnail_menus_apply_actions_to_the_clicked_layer_and_stack() {
+    let (mut h, clicked) = harness();
+    let selected = {
+        let session = &mut h.state_mut().session;
+        let layer = LayerId(id(execute(session, "layer.add.fill", &json!({"name": "Another fill"})).unwrap(), "layer"));
+        execute(session, "mask.add.white", &Value::Null).unwrap();
+        layer
+    };
+    h.run_steps(3);
+    assert_eq!(h.state().session.selected_layer(), Some(selected));
+
+    let at = thumb(&h, "Masked fill", true);
+    right_click(&mut h, at);
+    assert!(h.query_by_label("Flatten layer").is_none());
+    h.get_by_label("Toggle mask").click();
+    h.run_steps(3);
+    let project = &h.state().session.doc.project;
+    assert!(!project.layers[&clicked].mask.as_ref().unwrap().enabled);
+    assert!(project.layers[&selected].mask.as_ref().unwrap().enabled);
+    assert_eq!(h.state().session.target, StackTarget::Mask);
+
+    // The same layer's mask is still selected when its material menu opens.
+    let at = thumb(&h, "Masked fill", false);
+    right_click(&mut h, at);
+    assert!(h.query_by_label("Toggle mask").is_none());
+    assert!(h.query_by_label("Add generator").is_none());
+    h.get_by_label("Add levels").click();
+    h.run_steps(3);
+    let layer = &h.state().session.doc.project.layers[&clicked];
+    assert_eq!(layer.content_effects.len(), 2);
+    assert_eq!(layer.mask.as_ref().unwrap().effects.len(), 1);
+}
+
+#[test]
+fn focused_mask_thumbnail_opens_and_dismisses_its_menu_from_the_keyboard() {
+    let (mut h, _) = harness();
+    let thumbnail = "Select the mask (Alt+click: show it in the viewport) (Masked fill)";
+    h.get_by_label(thumbnail).focus();
+    h.run_steps(3);
+    assert!(h.get_by_label(thumbnail).is_focused());
+
+    h.key_press_modifiers(egui::Modifiers::SHIFT, egui::Key::F10);
+    h.run_steps(3);
+    assert!(h.query_by_label("Toggle mask").is_some());
+    h.key_press(egui::Key::ArrowDown);
+    h.run_steps(3);
+    assert!(h.get_by_label("Toggle mask").is_focused());
+    h.key_press(egui::Key::Escape);
+    h.run_steps(3);
+    assert!(h.query_by_label("Toggle mask").is_none());
+    assert!(h.get_by_label(thumbnail).is_focused());
+}
+
 /// Click the eye of the top-level row `name` with `modifiers` held (the eye sits in the first 20 points after the 7-point edge).
 fn click_eye(h: &mut Harness<'_, TextureCraftApp>, name: &str, modifiers: egui::Modifiers) {
     let row = h.get_by_label(name).rect();
