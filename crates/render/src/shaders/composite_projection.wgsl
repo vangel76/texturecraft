@@ -311,7 +311,7 @@ fn p1_flipped(samples: P1Samples, copy: P1Copy) -> P1Samples {
     var flipped = samples;
     let flip = (vec2(copy.flip) & vec2(1u, 2u)) != vec2(0u);
     for (var plane = 0u; plane < 3u; plane++) {
-        flipped.points[plane] = select(samples.points[plane], vec2(1.0) - samples.points[plane], flip);
+        flipped.points[plane] = select(flipped.points[plane], vec2(1.0) - flipped.points[plane], flip);
     }
     return flipped;
 }
@@ -342,11 +342,13 @@ fn p1_image_value(op: Operation, samples: P1Samples, surface: Surface, footprint
         let footprint = footprints[plane];
         linear = linear || (srgb_color && samples.weights[plane] > 0.0 && footprint > 1.0 && p1_finite(footprint));
     }
+    // Runtime indices reach arrays through a variable on every backend
+    var points = samples.points;
     var rgb = vec3(0.0);
     for (var plane = 0u; plane < 3u; plane++) {
         let weight = samples.weights[plane];
         if weight > 0.0 {
-            rgb += p1_read_image(op, image, samples.points[plane], surface, footprints[plane], linear, P1_RAW_KIND) * weight;
+            rgb += p1_read_image(op, image, points[plane], surface, footprints[plane], linear, P1_RAW_KIND) * weight;
         }
     }
 
